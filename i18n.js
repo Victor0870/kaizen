@@ -48,6 +48,11 @@ const MESSAGES = {
     "common.logoutFailed": "Không thể đăng xuất. Vui lòng thử lại.",
     "common.noData": "Không có dữ liệu",
 
+    "preview.enabled": "Chế độ xem trước: đã bỏ qua đăng nhập (chưa kết nối Firebase).",
+    "preview.bannerTitle": "Chế độ xem trước",
+    "preview.bannerHint": "Đã tắt login. Dữ liệu lưu tạm trên trình duyệt. Bật lại Firebase bằng cách đặt PREVIEW_MODE = false trong constants.js.",
+    "preview.logoutDisabled": "Chế độ xem trước — đăng xuất tạm thời bị tắt.",
+
     "auth.login": "Đăng nhập",
     "auth.register": "Đăng ký",
     "auth.loginEmail": "Email đăng nhập",
@@ -258,6 +263,11 @@ const MESSAGES = {
     "common.systemOnline": "System online",
     "common.logoutFailed": "Unable to log out. Please try again.",
     "common.noData": "No data",
+
+    "preview.enabled": "Preview mode: login skipped (Firebase not connected).",
+    "preview.bannerTitle": "Preview mode",
+    "preview.bannerHint": "Login is disabled. Data is stored locally in the browser. Set PREVIEW_MODE = false in constants.js when Firebase is ready.",
+    "preview.logoutDisabled": "Preview mode — logout is temporarily disabled.",
 
     "auth.login": "Login",
     "auth.register": "Register",

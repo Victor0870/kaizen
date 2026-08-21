@@ -395,3 +395,30 @@
   .kz-topbar { flex-direction: column; }
   .kz-metric-row { grid-template-columns: 1fr; }
 }
+
+.preview-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  padding: 0.55rem 1rem;
+  background: #0f766e;
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.preview-banner strong {
+  font-weight: 800;
+}
+
+body.preview-mode .admin-nav-item[href="./admin.html"],
+body.preview-mode a.auth-admin-link {
+  display: none !important;
+}
+
+body.preview-mode #appScreen {
+  min-height: calc(100vh - 40px);
+}

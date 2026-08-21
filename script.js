@@ -1,27 +1,32 @@
-import {
-  auth,
-  db,
-  authPersistenceReady,
-  initAppCheck,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  deleteUser,
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp
-} from "./firebase-config.js";
 import { initI18n, t, onLanguageChange, applyI18n } from "./i18n.js";
 import { bindPasswordExpiry } from "./password-expiry.js";
-import { CAP_BAC_OPTIONS, DEPARTMENT_OPTIONS, CLASSIFICATION_CODES, KAIZEN_STATUS } from "./constants.js";
+import {
+  PREVIEW_MODE,
+  CAP_BAC_OPTIONS,
+  DEPARTMENT_OPTIONS,
+  CLASSIFICATION_CODES,
+  KAIZEN_STATUS
+} from "./constants.js";
 import {
   calcTotalSavings,
   uploadKaizenImage,
   saveKaizenRecord,
   fetchKaizenList
 } from "./kaizen-service.js";
+
+let auth = null;
+let db = null;
+let authPersistenceReady = Promise.resolve();
+let initAppCheck = async () => {};
+let onAuthStateChanged = () => () => {};
+let signInWithEmailAndPassword = async () => {};
+let createUserWithEmailAndPassword = async () => {};
+let signOut = async () => {};
+let deleteUser = async () => {};
+let doc = () => {};
+let getDoc = async () => {};
+let setDoc = async () => {};
+let serverTimestamp = () => null;
 
 let currentFirebaseUser = null;
 let currentUserProfile = null;
@@ -36,15 +41,11 @@ document.addEventListener("DOMContentLoaded", initApp);
 
 async function initApp() {
   initI18n();
-  await initAppCheck();
   populateRegisterSelects();
   bindEvents();
   syncFormDefaults();
   renderClassificationButtons();
   updateMetricsUI();
-
-  await authPersistenceReady;
-  observeAuthState();
 
   onLanguageChange(() => {
     document.querySelectorAll("[data-original-text]").forEach((el) => {
@@ -58,6 +59,66 @@ async function initApp() {
       fillUserDisplay(currentUserProfile, currentFirebaseUser);
     }
   });
+
+  if (PREVIEW_MODE) {
+    await enterPreviewMode();
+    return;
+  }
+
+  const firebase = await import("./firebase-config.js");
+  auth = firebase.auth;
+  db = firebase.db;
+  authPersistenceReady = firebase.authPersistenceReady;
+  initAppCheck = firebase.initAppCheck;
+  onAuthStateChanged = firebase.onAuthStateChanged;
+  signInWithEmailAndPassword = firebase.signInWithEmailAndPassword;
+  createUserWithEmailAndPassword = firebase.createUserWithEmailAndPassword;
+  signOut = firebase.signOut;
+  deleteUser = firebase.deleteUser;
+  doc = firebase.doc;
+  getDoc = firebase.getDoc;
+  setDoc = firebase.setDoc;
+  serverTimestamp = firebase.serverTimestamp;
+
+  await initAppCheck();
+  await authPersistenceReady;
+  observeAuthState();
+}
+
+async function enterPreviewMode() {
+  const demoProfile = {
+    uid: "preview-user",
+    email: "preview@local.dev",
+    taiKhoan: "DEMO001",
+    hoTen: "Người dùng xem trước",
+    department: "GAHR",
+    capBac: "Staff",
+    role: "user",
+    status: "active",
+    passwordChangedAt: new Date(),
+    createdAt: new Date()
+  };
+  const demoUser = { email: demoProfile.email, metadata: { creationTime: new Date().toISOString() } };
+
+  currentUserProfile = demoProfile;
+  currentFirebaseUser = demoUser;
+
+  document.body.classList.add("preview-mode");
+  ensurePreviewBanner();
+  await showAppScreen(demoProfile, demoUser);
+  showPageLoader(false);
+  showToast(t("preview.enabled"), "info");
+}
+
+function ensurePreviewBanner() {
+  if (document.getElementById("previewBanner")) return;
+  const banner = document.createElement("div");
+  banner.id = "previewBanner";
+  banner.className = "preview-banner";
+  banner.innerHTML = `<strong data-i18n="preview.bannerTitle">${t("preview.bannerTitle")}</strong>
+    <span data-i18n="preview.bannerHint">${t("preview.bannerHint")}</span>`;
+  document.body.prepend(banner);
+  applyI18n(banner);
 }
 
 function populateRegisterSelects() {
@@ -163,6 +224,8 @@ function observeAuthState() {
 
 async function handleLogin(event) {
   event.preventDefault();
+  if (PREVIEW_MODE) return;
+
   const email = document.getElementById("emailInput").value.trim();
   const password = document.getElementById("passwordInput").value;
   const loginBtn = document.getElementById("loginBtn");
@@ -187,6 +250,8 @@ async function handleLogin(event) {
 
 async function handleRegister(event) {
   event.preventDefault();
+  if (PREVIEW_MODE) return;
+
   const registerBtn = document.getElementById("registerBtn");
   const email = document.getElementById("registerEmailInput").value.trim().toLowerCase();
   const password = document.getElementById("registerPasswordInput").value;
@@ -257,6 +322,10 @@ function validateRegisterForm({ email, password, confirmPassword, taiKhoan, hoTe
 }
 
 async function handleLogout() {
+  if (PREVIEW_MODE) {
+    showToast(t("preview.logoutDisabled"), "info");
+    return;
+  }
   try {
     await signOut(auth);
     showToast(t("auth.loggedOut"), "info");
@@ -488,8 +557,8 @@ function collectFormPayload(mode) {
     totalSavings: calcTotalSavings(dailyHoursSaved, monthlyDays, hourlyCost),
     qualitativeEffect: document.getElementById("qualitativeEffect")?.value || "",
     status: mode === "report" ? KAIZEN_STATUS.REPORT : KAIZEN_STATUS.IDEA,
-    uid: currentFirebaseUser?.uid || "",
-    email: currentFirebaseUser?.email || "",
+    uid: currentFirebaseUser?.uid || currentUserProfile?.uid || "",
+    email: currentFirebaseUser?.email || currentUserProfile?.email || "",
     taiKhoan: currentUserProfile?.taiKhoan || "",
     department: currentUserProfile?.department || "",
     capBac: currentUserProfile?.capBac || ""
@@ -498,7 +567,7 @@ function collectFormPayload(mode) {
 
 async function saveKaizen(mode) {
   if (isSaving) return;
-  if (!currentFirebaseUser || !currentUserProfile) {
+  if (!currentUserProfile) {
     showToast(t("common.notLoggedIn"), "error");
     return;
   }
@@ -530,8 +599,7 @@ async function saveKaizen(mode) {
     await saveKaizenRecord(payload);
     showToast(t("kaizen.saved", { id: payload.kaizenId }), "success");
     await loadKaizenListSafe();
-    if (mode === "idea") setActiveTab("list");
-    else setActiveTab("list");
+    setActiveTab("list");
   } catch (error) {
     console.error(error);
     showToast(error.message || t("kaizen.saveFailed"), "error");
