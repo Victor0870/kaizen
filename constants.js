@@ -2,7 +2,7 @@
  * true = xem giao diện không cần login / Firebase (dữ liệu lưu localStorage).
  * Đổi thành false khi đã cấu hình Firebase và muốn bật đăng nhập thật.
  */
-export const PREVIEW_MODE = true;
+export const PREVIEW_MODE = false;
 
 /** Cấp bậc dùng cho phân quyền phê duyệt phiếu ý tưởng (sẽ triển khai sau). */
 export const CAP_BAC_OPTIONS = [

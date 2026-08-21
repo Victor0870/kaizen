@@ -51,17 +51,16 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 
 /**
- * Cấu hình Firebase cho dự án Kaizen.
- * Thay bằng project Firebase riêng (không dùng chung ATVSV).
+ * Cấu hình Firebase project kaizen-bbe28.
  * apiKey trên client là bình thường với SPA; bảo vệ bằng Security Rules + App Check.
  */
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCDTeFHQQW1lAcFUhUTg41ZbZ5WWWQWR5U",
+  authDomain: "kaizen-bbe28.firebaseapp.com",
+  projectId: "kaizen-bbe28",
+  storageBucket: "kaizen-bbe28.firebasestorage.app",
+  messagingSenderId: "186217666381",
+  appId: "1:186217666381:web:034ae53b32b3f3a7550904"
 };
 
 /** Để trống = App Check chưa bật (dev). Production: điền reCAPTCHA v3 site key. */
