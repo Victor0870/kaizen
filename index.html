@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaizen - Idemitsu</title>
+  <link rel="stylesheet" href="./style.css?v=20260821a">
+  <link rel="stylesheet" href="./kaizen.css?v=20260821a">
+</head>
+<body data-page-title-key="page.index">
+  <div id="pageLoader" class="page-loader">
+    <div class="loader-card">
+      <div class="spinner"></div>
+      <p id="pageLoaderText" data-i18n="common.checkingSession">Đang kiểm tra phiên đăng nhập...</p>
+    </div>
+  </div>
+
+  <main id="authShell" class="app-shell">
+    <section id="loginScreen" class="screen auth-screen hidden">
+      <div class="auth-card">
+        <div class="auth-lang-switch">
+          <div class="sidebar-lang-actions">
+            <button type="button" class="lang-switch-btn" data-lang="vi">VI</button>
+            <button type="button" class="lang-switch-btn" data-lang="en">EN</button>
+          </div>
+        </div>
+        <div class="brand-line"></div>
+        <h1 class="auth-title">Kaizen System</h1>
+        <p class="auth-subtitle" data-i18n="common.company">Idemitsu Lubricants Vietnam</p>
+
+        <div class="auth-switch">
+          <button type="button" id="showLoginTabBtn" class="switch-btn active" data-i18n="auth.login">Đăng nhập</button>
+          <button type="button" id="showRegisterTabBtn" class="switch-btn" data-i18n="auth.register">Đăng ký</button>
+        </div>
+
+        <div id="loginPanel" class="auth-panel active">
+          <form id="loginForm" class="form-stack">
+            <div class="form-group">
+              <label for="emailInput" data-i18n="auth.loginEmail">Email đăng nhập</label>
+              <input type="email" id="emailInput" data-i18n-placeholder="auth.placeholder.email" placeholder="Nhập email" autocomplete="email" required>
+            </div>
+            <div class="form-group">
+              <label for="passwordInput" data-i18n="auth.password">Mật khẩu</label>
+              <div class="password-wrap">
+                <input type="password" id="passwordInput" data-i18n-placeholder="auth.placeholder.password" placeholder="Nhập mật khẩu" autocomplete="current-password" required>
+                <button type="button" id="togglePasswordBtn" class="ghost-btn small-btn" data-i18n="auth.showPassword">Hiện</button>
+              </div>
+            </div>
+            <button type="submit" id="loginBtn" class="primary-btn full-btn" data-i18n="auth.login">Đăng nhập</button>
+          </form>
+          <div class="note-box">
+            <strong data-i18n="auth.note">Lưu ý:</strong>
+            <span data-i18n="auth.noteLogin">Chỉ tài khoản đã được admin kích hoạt mới sử dụng được hệ thống Kaizen.</span>
+          </div>
+        </div>
+
+        <div id="registerPanel" class="auth-panel hidden">
+          <form id="registerForm" class="form-stack">
+            <div class="form-group">
+              <label for="registerEmailInput" data-i18n="common.email">Email</label>
+              <input type="email" id="registerEmailInput" data-i18n-placeholder="auth.placeholder.email" placeholder="Nhập email" autocomplete="email" required>
+            </div>
+            <div class="form-group">
+              <label for="registerPasswordInput" data-i18n="auth.password">Mật khẩu</label>
+              <input type="password" id="registerPasswordInput" data-i18n-placeholder="auth.placeholder.minPassword" placeholder="Tối thiểu 6 ký tự" autocomplete="new-password" required>
+            </div>
+            <div class="form-group">
+              <label for="registerConfirmPasswordInput" data-i18n="auth.confirmPassword">Xác nhận mật khẩu</label>
+              <input type="password" id="registerConfirmPasswordInput" data-i18n-placeholder="auth.placeholder.confirmPassword" placeholder="Nhập lại mật khẩu" autocomplete="new-password" required>
+            </div>
+            <div class="form-group">
+              <label for="registerTaiKhoanInput" data-i18n="auth.internalAccount">Mã nhân viên</label>
+              <input type="text" id="registerTaiKhoanInput" data-i18n-placeholder="auth.placeholder.account" placeholder="Ví dụ: 003GAHR" required>
+            </div>
+            <div class="form-group">
+              <label for="registerHoTenInput" data-i18n="common.fullName">Họ tên</label>
+              <input type="text" id="registerHoTenInput" data-i18n-placeholder="auth.placeholder.fullName" placeholder="Nhập họ tên đầy đủ" required>
+            </div>
+            <div class="form-group">
+              <label for="registerDepartmentInput" data-i18n="auth.department">Bộ phận (Department)</label>
+              <select id="registerDepartmentInput" required>
+                <option value="" data-i18n="auth.placeholder.selectDepartment">-- Chọn bộ phận --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="registerCapBacInput" data-i18n="auth.capBac">Cấp bậc</label>
+              <select id="registerCapBacInput" required>
+                <option value="" data-i18n="auth.placeholder.selectCapBac">-- Chọn cấp bậc --</option>
+              </select>
+            </div>
+            <button type="submit" id="registerBtn" class="primary-btn full-btn" data-i18n="auth.registerAccount">Đăng ký tài khoản</button>
+          </form>
+          <div class="note-box">
+            <strong data-i18n="auth.note">Lưu ý:</strong>
+            <span data-i18n="auth.noteRegister">Sau khi đăng ký, tài khoản sẽ ở trạng thái chờ admin phê duyệt.</span>
+          </div>
+        </div>
+
+        <a href="./admin.html" class="auth-admin-link" data-i18n="auth.adminLink">Quản trị hệ thống (Admin)</a>
+      </div>
+    </section>
+  </main>
+
+  <section id="appScreen" class="screen hidden app-page">
+    <div class="admin-layout">
+      <aside class="admin-sidebar">
+        <div class="admin-sidebar-brand">
+          <div class="admin-brand-icon">KZ</div>
+          <div>
+            <strong>IDEMITSU ILV</strong>
+            <span data-i18n="nav.brand.system">Hệ thống Kaizen</span>
+          </div>
+        </div>
+
+        <nav class="admin-sidebar-nav">
+          <p class="admin-nav-label" data-i18n="nav.section.functions">Chức năng</p>
+          <button type="button" class="admin-nav-item active" data-tab="idea" data-i18n="nav.idea">Phiếu ý tưởng</button>
+          <button type="button" class="admin-nav-item" data-tab="report" data-i18n="nav.report">Báo cáo kết quả</button>
+          <button type="button" class="admin-nav-item" data-tab="list" data-i18n="nav.list">Danh sách ý tưởng</button>
+          <p class="admin-nav-label" data-i18n="nav.section.quickLinks">Liên kết nhanh</p>
+          <a href="./admin.html" class="admin-nav-item" data-i18n="nav.admin">Quản trị hệ thống</a>
+        </nav>
+
+        <div class="admin-sidebar-footer">
+          <div class="sidebar-password-expiry" data-password-expiry>
+            <span class="sidebar-password-expiry-label" data-i18n="passwordExpiry.label">Thời hạn mật khẩu</span>
+            <strong class="sidebar-password-expiry-remain" data-password-expiry-remain>—</strong>
+            <div class="sidebar-password-expiry-track" aria-hidden="true">
+              <span class="sidebar-password-expiry-fill" data-password-expiry-fill></span>
+            </div>
+            <a href="./change-password.html" class="sidebar-password-expiry-hint sidebar-password-expiry-link" data-i18n="passwordExpiry.hint">Click here to change pass</a>
+          </div>
+          <div class="sidebar-lang-switch">
+            <span class="sidebar-lang-label" data-i18n="lang.label">Ngôn ngữ</span>
+            <div class="sidebar-lang-actions">
+              <button type="button" class="lang-switch-btn" data-lang="vi">VI</button>
+              <button type="button" class="lang-switch-btn" data-lang="en">EN</button>
+            </div>
+          </div>
+          <div class="admin-user-card">
+            <div id="appUserInitials" class="admin-user-avatar">U</div>
+            <div class="admin-user-meta">
+              <strong id="sidebarUserName">-</strong>
+              <span id="sidebarUserEmail">-</span>
+            </div>
+          </div>
+          <button type="button" id="logoutBtn" class="ghost-btn full-btn admin-logout-btn" data-i18n="common.logout">Đăng xuất</button>
+        </div>
+      </aside>
+
+      <div class="admin-main app-main">
+        <header class="kz-topbar">
+          <div>
+            <h1 data-i18n="kaizen.header.title">Hệ Thống Quản Lý & Nhập Liệu Kaizen</h1>
+            <p data-i18n="kaizen.header.subtitle">Nhập phiếu ý tưởng, báo cáo kết quả và quản lý danh sách Kaizen</p>
+          </div>
+          <button type="button" id="headerSaveBtn" class="kz-save-btn">
+            <span data-i18n="kaizen.save">Lưu dữ liệu</span>
+          </button>
+        </header>
+
+        <section class="user-info-grid">
+          <div class="info-card">
+            <span class="info-label" data-i18n="common.fullName">Họ tên</span>
+            <strong id="displayHoTen">-</strong>
+          </div>
+          <div class="info-card">
+            <span class="info-label" data-i18n="common.account">Mã nhân viên</span>
+            <strong id="displayTaiKhoan">-</strong>
+          </div>
+          <div class="info-card">
+            <span class="info-label" data-i18n="common.department">Bộ phận</span>
+            <strong id="displayDepartment">-</strong>
+          </div>
+          <div class="info-card">
+            <span class="info-label" data-i18n="common.capBac">Cấp bậc</span>
+            <strong id="displayCapBac">-</strong>
+          </div>
+        </section>
+
+        <nav class="kz-tabs" id="kzTabs">
+          <button type="button" class="kz-tab active" data-tab="idea" data-i18n="kaizen.tab.idea">1. Phiếu Ý Tưởng Kaizen</button>
+          <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">2. Báo Cáo Kết Quả Kaizen</button>
+          <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">3. Danh Sách Ý Tưởng</button>
+        </nav>
+
+        <!-- TAB IDEA -->
+        <div id="tabIdea" class="kz-panel">
+          <div class="kz-card">
+            <div class="kz-card-head idea">
+              <div>
+                <h2 data-i18n="kaizen.idea.title">PHIẾU LẬP Ý TƯỞNG KAIZEN</h2>
+                <p data-i18n="kaizen.idea.subtitle">Ghi nhận thông tin thực trạng, nguyên nhân & giải pháp dự kiến</p>
+              </div>
+              <div class="kz-meta-grid">
+                <label><span data-i18n="kaizen.field.kaizenId">Mã Kaizen</span><input type="text" id="ideaKaizenId"></label>
+                <label><span data-i18n="kaizen.field.date">Ngày</span><input type="date" id="ideaDate"></label>
+                <label><span data-i18n="kaizen.field.dept">Bộ phận</span><input type="text" id="ideaDept"></label>
+                <label><span data-i18n="kaizen.field.proposer">Người đề xuất</span><input type="text" id="ideaProposer"></label>
+              </div>
+            </div>
+
+            <div class="kz-approval-row">
+              <label><span data-i18n="kaizen.field.approved">Người duyệt</span><input type="text" id="ideaApproved"></label>
+              <label><span data-i18n="kaizen.field.checked">Kiểm tra</span><input type="text" id="ideaChecked"></label>
+              <label><span data-i18n="kaizen.field.proposer">Đề xuất</span><input type="text" id="ideaProposer2"></label>
+            </div>
+
+            <div class="kz-content-row">
+              <div class="kz-grow">
+                <label class="kz-label" data-i18n="kaizen.field.improvedContent">Nội dung cải tiến</label>
+                <input type="text" id="ideaImprovedContent" class="kz-input-accent">
+              </div>
+              <div>
+                <label class="kz-label" data-i18n="kaizen.field.classification">Loại vấn đề</label>
+                <div id="ideaClassification" class="kz-class-btns"></div>
+              </div>
+            </div>
+
+            <div class="kz-split">
+              <div class="kz-box">
+                <div class="kz-box-title warn" data-i18n="kaizen.before.status">BEFORE STATUS</div>
+                <label class="kz-label" data-i18n="kaizen.field.problemDesc">Mô tả vấn đề</label>
+                <textarea id="ideaProblemDesc" rows="3"></textarea>
+                <label class="kz-label" data-i18n="kaizen.field.improvementPlan">Kế hoạch cải tiến</label>
+                <input type="text" id="ideaImprovementPlan">
+                <label class="kz-label" data-i18n="kaizen.field.improvementActions">Hành động cải tiến</label>
+                <input type="text" id="ideaImprovementActions">
+                <label class="kz-label" data-i18n="kaizen.field.riskIdentification">Nhận diện rủi ro</label>
+                <input type="text" id="ideaRiskIdentification">
+                <label class="kz-upload">
+                  <span data-i18n="kaizen.field.beforeImage">Ảnh before</span>
+                  <input type="file" id="ideaBeforeImage" accept="image/*">
+                </label>
+              </div>
+              <div class="kz-box">
+                <div class="kz-box-title ok" data-i18n="kaizen.after.target">AFTER TARGET</div>
+                <label class="kz-label" data-i18n="kaizen.field.afterTarget">Kết quả kỳ vọng</label>
+                <textarea id="ideaAfterDescription" rows="8"></textarea>
+                <label class="kz-upload ok">
+                  <span data-i18n="kaizen.field.afterImage">Ảnh after</span>
+                  <input type="file" id="ideaAfterImage" accept="image/*">
+                </label>
+              </div>
+            </div>
+
+            <div class="kz-footer-actions">
+              <button type="button" id="saveIdeaBtn" class="primary-btn" data-i18n="kaizen.saveIdea">Lưu phiếu ý tưởng</button>
+              <button type="button" id="goReportBtn" class="kz-btn-purple" data-i18n="kaizen.goReport">Chuyển sang báo cáo Kaizen</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB REPORT -->
+        <div id="tabReport" class="kz-panel hidden">
+          <div class="kz-card">
+            <div class="kz-card-head report">
+              <div>
+                <h2 data-i18n="kaizen.report.title">KAIZEN REPORT</h2>
+                <p data-i18n="kaizen.report.subtitle">Đánh giá hiệu quả</p>
+              </div>
+              <div class="kz-meta-grid">
+                <label><span data-i18n="kaizen.field.kaizenId">Mã Kaizen</span><input type="text" id="reportKaizenId"></label>
+                <label><span data-i18n="kaizen.field.date">Ngày</span><input type="date" id="reportDate"></label>
+                <label><span data-i18n="kaizen.field.dept">Bộ phận</span><input type="text" id="reportDept"></label>
+                <label><span data-i18n="kaizen.field.sopNo">SOP</span><input type="text" id="reportSopNo"></label>
+              </div>
+            </div>
+
+            <div class="kz-meta-row">
+              <label><span data-i18n="kaizen.field.productName">Sản phẩm</span><input type="text" id="reportProductName"></label>
+              <label><span data-i18n="kaizen.field.process">Công đoạn</span><input type="text" id="reportProcess"></label>
+              <label><span data-i18n="kaizen.field.target">Mục tiêu</span><input type="text" id="reportTarget"></label>
+              <label><span data-i18n="kaizen.field.targetDetail">Chi tiết</span><input type="text" id="reportTargetDetail"></label>
+            </div>
+
+            <div class="kz-tri">
+              <div class="kz-box warn-bg">
+                <div class="kz-box-title warn" data-i18n="kaizen.field.beforeDesc">Before</div>
+                <textarea id="reportBeforeDescription" rows="4"></textarea>
+                <label class="kz-upload"><span data-i18n="kaizen.field.beforeReportImage">Ảnh Before</span><input type="file" id="reportBeforeImage" accept="image/*"></label>
+              </div>
+              <div class="kz-box blue-bg">
+                <div class="kz-box-title blue" data-i18n="kaizen.field.materials">Vật tư & chi phí</div>
+                <textarea id="reportMaterialsAndCost" rows="4"></textarea>
+              </div>
+              <div class="kz-box ok-bg">
+                <div class="kz-box-title ok" data-i18n="kaizen.field.afterDesc">After</div>
+                <textarea id="reportAfterDescription" rows="4"></textarea>
+                <label class="kz-upload ok"><span data-i18n="kaizen.field.afterReportImage">Ảnh After</span><input type="file" id="reportAfterImage" accept="image/*"></label>
+              </div>
+            </div>
+
+            <div class="kz-metrics">
+              <h3 data-i18n="kaizen.metrics.title">BẢNG TÍNH TOÁN</h3>
+              <div class="kz-metrics-grid">
+                <div class="kz-metric-card">
+                  <h4 data-i18n="kaizen.metrics.workHour">Work hour & Near-miss</h4>
+                  <div class="kz-metric-row"><span>Work Hour (Before)</span><input type="number" id="beforeWorkHour" value="0"></div>
+                  <div class="kz-metric-row"><span>Work Hour (After)</span><input type="number" id="afterWorkHour" value="0"><strong id="diffWorkHour">0h</strong></div>
+                  <div class="kz-metric-row"><span>Near-miss (Before)</span><input type="number" id="beforeNearMiss" value="0"></div>
+                  <div class="kz-metric-row"><span>Near-miss (After)</span><input type="number" id="afterNearMiss" value="0"><strong id="diffNearMiss">0</strong></div>
+                </div>
+                <div class="kz-metric-card">
+                  <h4 data-i18n="kaizen.metrics.cost">Cost reduction</h4>
+                  <div class="kz-metric-row"><span>Hours saved/day</span><input type="number" id="dailyHoursSaved" value="0" step="0.1"></div>
+                  <div class="kz-metric-row"><span>Days/month</span><input type="number" id="monthlyDays" value="22"></div>
+                  <div class="kz-metric-row"><span>$/hour</span><input type="number" id="hourlyCost" value="5" step="0.5"></div>
+                  <div class="kz-savings">
+                    <span data-i18n="kaizen.metrics.totalSavings">TOTAL</span>
+                    <strong id="totalCostSavings">$0.00</strong>
+                    <small data-i18n="kaizen.metrics.usdMonth">USD / Tháng</small>
+                  </div>
+                </div>
+                <div class="kz-metric-card">
+                  <h4 data-i18n="kaizen.metrics.qualitative">Qualitative</h4>
+                  <textarea id="qualitativeEffect" rows="5"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="kz-footer-actions end">
+              <button type="button" id="saveReportBtn" class="primary-btn" data-i18n="kaizen.saveReport">Nghiệm thu & Lưu báo cáo</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB LIST -->
+        <div id="tabList" class="kz-panel hidden">
+          <div class="kz-card">
+            <div class="kz-list-head">
+              <div>
+                <h2 data-i18n="kaizen.list.title">Cơ Sở Dữ Liệu Kaizen</h2>
+                <p data-i18n="kaizen.list.subtitle">Danh sách phiếu đã lưu</p>
+              </div>
+              <button type="button" id="createNewBtn" class="kz-btn-purple" data-i18n="kaizen.list.createNew">Tạo Kaizen mới</button>
+            </div>
+            <div class="admin-table-container">
+              <table class="admin-table kz-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="kaizen.col.id">Mã Kaizen</th>
+                    <th data-i18n="kaizen.col.date">Ngày</th>
+                    <th data-i18n="kaizen.col.dept">Bộ phận</th>
+                    <th data-i18n="kaizen.col.content">Nội dung</th>
+                    <th data-i18n="kaizen.col.class">Phân loại</th>
+                    <th data-i18n="kaizen.col.proposer">Người đề xuất</th>
+                    <th data-i18n="kaizen.col.savings">Tiết kiệm ($)</th>
+                    <th data-i18n="kaizen.col.status">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="kaizenTableBody">
+                  <tr><td colspan="8" class="empty-table" data-i18n="common.noData">Không có dữ liệu</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="./script.js?v=20260821a"></script>
+</body>
+</html>

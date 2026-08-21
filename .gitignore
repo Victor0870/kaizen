@@ -1,0 +1,27 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Env / secrets
+.env
+.env.local
+firebase-debug.log
+firebase-debug.*.log
+*.log.json
+
+# Firebase service account (local seed only)
+tools/service-account.json
+
+# Local agent / feedback
+.nova_agent_*
+cursor_feedback_*.txt
+
+node_modules/

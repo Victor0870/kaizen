@@ -1,0 +1,9 @@
+{
+  "name": "kaizen",
+  "private": true,
+  "type": "module",
+  "description": "Kaizen idea sheet / report management (Idemitsu ILV)",
+  "scripts": {
+    "deploy:rules": "firebase deploy --only firestore:rules,storage:rules"
+  }
+}

@@ -1,0 +1,668 @@
+import {
+  auth,
+  db,
+  authPersistenceReady,
+  initAppCheck,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  deleteUser,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp
+} from "./firebase-config.js";
+import { initI18n, t, onLanguageChange, applyI18n } from "./i18n.js";
+import { bindPasswordExpiry } from "./password-expiry.js";
+import { CAP_BAC_OPTIONS, DEPARTMENT_OPTIONS, CLASSIFICATION_CODES, KAIZEN_STATUS } from "./constants.js";
+import {
+  calcTotalSavings,
+  uploadKaizenImage,
+  saveKaizenRecord,
+  fetchKaizenList
+} from "./kaizen-service.js";
+
+let currentFirebaseUser = null;
+let currentUserProfile = null;
+let isHandlingRegistration = false;
+let toastTimer = null;
+let activeTab = "idea";
+let selectedClassification = [];
+let kaizenListCache = [];
+let isSaving = false;
+
+document.addEventListener("DOMContentLoaded", initApp);
+
+async function initApp() {
+  initI18n();
+  await initAppCheck();
+  populateRegisterSelects();
+  bindEvents();
+  syncFormDefaults();
+  renderClassificationButtons();
+  updateMetricsUI();
+
+  await authPersistenceReady;
+  observeAuthState();
+
+  onLanguageChange(() => {
+    document.querySelectorAll("[data-original-text]").forEach((el) => {
+      delete el.dataset.originalText;
+    });
+    applyI18n();
+    populateRegisterSelects();
+    renderClassificationButtons();
+    renderKaizenTable();
+    if (currentUserProfile && currentFirebaseUser) {
+      fillUserDisplay(currentUserProfile, currentFirebaseUser);
+    }
+  });
+}
+
+function populateRegisterSelects() {
+  const deptSelect = document.getElementById("registerDepartmentInput");
+  const capSelect = document.getElementById("registerCapBacInput");
+  if (!deptSelect || !capSelect) return;
+
+  const currentDept = deptSelect.value;
+  const currentCap = capSelect.value;
+
+  deptSelect.innerHTML = `<option value="">${t("auth.placeholder.selectDepartment")}</option>` +
+    DEPARTMENT_OPTIONS.map((d) => `<option value="${d}">${d}</option>`).join("");
+  capSelect.innerHTML = `<option value="">${t("auth.placeholder.selectCapBac")}</option>` +
+    CAP_BAC_OPTIONS.map((c) => `<option value="${c}">${c}</option>`).join("");
+
+  if (currentDept) deptSelect.value = currentDept;
+  if (currentCap) capSelect.value = currentCap;
+}
+
+function bindEvents() {
+  document.getElementById("showLoginTabBtn")?.addEventListener("click", () => showAuthTab("login"));
+  document.getElementById("showRegisterTabBtn")?.addEventListener("click", () => showAuthTab("register"));
+  document.getElementById("loginForm")?.addEventListener("submit", handleLogin);
+  document.getElementById("registerForm")?.addEventListener("submit", handleRegister);
+  document.getElementById("logoutBtn")?.addEventListener("click", handleLogout);
+  document.getElementById("togglePasswordBtn")?.addEventListener("click", togglePasswordVisibility);
+
+  document.querySelectorAll("[data-tab]").forEach((el) => {
+    el.addEventListener("click", () => setActiveTab(el.dataset.tab));
+  });
+
+  document.getElementById("goReportBtn")?.addEventListener("click", () => {
+    syncIdeaToReportFields();
+    setActiveTab("report");
+  });
+  document.getElementById("createNewBtn")?.addEventListener("click", () => {
+    resetFormForNew();
+    setActiveTab("idea");
+  });
+  document.getElementById("saveIdeaBtn")?.addEventListener("click", () => saveKaizen("idea"));
+  document.getElementById("saveReportBtn")?.addEventListener("click", () => saveKaizen("report"));
+  document.getElementById("headerSaveBtn")?.addEventListener("click", () => {
+    saveKaizen(activeTab === "report" ? "report" : "idea");
+  });
+
+  ["beforeWorkHour", "afterWorkHour", "beforeNearMiss", "afterNearMiss", "dailyHoursSaved", "monthlyDays", "hourlyCost"]
+    .forEach((id) => document.getElementById(id)?.addEventListener("input", updateMetricsUI));
+
+  document.getElementById("ideaProposer")?.addEventListener("input", (e) => {
+    const other = document.getElementById("ideaProposer2");
+    if (other) other.value = e.target.value;
+  });
+  document.getElementById("ideaProposer2")?.addEventListener("input", (e) => {
+    const other = document.getElementById("ideaProposer");
+    if (other) other.value = e.target.value;
+  });
+}
+
+function showAuthTab(tabName) {
+  const isRegister = tabName === "register";
+  document.getElementById("showLoginTabBtn")?.classList.toggle("active", !isRegister);
+  document.getElementById("showRegisterTabBtn")?.classList.toggle("active", isRegister);
+  document.getElementById("loginPanel")?.classList.toggle("active", !isRegister);
+  document.getElementById("loginPanel")?.classList.toggle("hidden", isRegister);
+  document.getElementById("registerPanel")?.classList.toggle("active", isRegister);
+  document.getElementById("registerPanel")?.classList.toggle("hidden", !isRegister);
+}
+
+function observeAuthState() {
+  showPageLoader(true, t("common.checkingSession"));
+
+  onAuthStateChanged(auth, async (user) => {
+    if (isHandlingRegistration) return;
+
+    try {
+      if (!user) {
+        currentFirebaseUser = null;
+        currentUserProfile = null;
+        showLoginScreen();
+        return;
+      }
+
+      currentFirebaseUser = user;
+      const profile = await loadCurrentUserProfile(user.uid);
+      ensureAuthorizedAccess(profile);
+      currentUserProfile = profile;
+      await showAppScreen(profile, user);
+    } catch (error) {
+      console.error(error);
+      const message = error.message || t("auth.loadProfileFailed");
+      if (shouldSignOutOnAccessError(message)) {
+        await safeSignOut();
+        showLoginScreen();
+      } else {
+        showLoginScreen();
+      }
+      showToast(message, "error");
+    } finally {
+      showPageLoader(false);
+    }
+  });
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const email = document.getElementById("emailInput").value.trim();
+  const password = document.getElementById("passwordInput").value;
+  const loginBtn = document.getElementById("loginBtn");
+
+  if (!email || !password) {
+    showToast(t("auth.fillEmailPassword"), "error");
+    return;
+  }
+
+  setButtonLoading(loginBtn, true, t("auth.loggingIn"));
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    document.getElementById("passwordInput").value = "";
+    showToast(t("auth.loginSuccess"), "success");
+  } catch (error) {
+    console.error(error);
+    showToast(getFirebaseErrorMessage(error), "error");
+  } finally {
+    setButtonLoading(loginBtn, false);
+  }
+}
+
+async function handleRegister(event) {
+  event.preventDefault();
+  const registerBtn = document.getElementById("registerBtn");
+  const email = document.getElementById("registerEmailInput").value.trim().toLowerCase();
+  const password = document.getElementById("registerPasswordInput").value;
+  const confirmPassword = document.getElementById("registerConfirmPasswordInput").value;
+  const taiKhoan = document.getElementById("registerTaiKhoanInput").value.trim();
+  const hoTen = document.getElementById("registerHoTenInput").value.trim();
+  const department = document.getElementById("registerDepartmentInput").value.trim();
+  const capBac = document.getElementById("registerCapBacInput").value.trim();
+
+  const validationMessage = validateRegisterForm({
+    email, password, confirmPassword, taiKhoan, hoTen, department, capBac
+  });
+  if (validationMessage) {
+    showToast(validationMessage, "error");
+    return;
+  }
+
+  let createdAuthUser = null;
+  setButtonLoading(registerBtn, true, t("auth.registering"));
+  showPageLoader(true, t("auth.creatingAccount"));
+  isHandlingRegistration = true;
+
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    createdAuthUser = credential.user;
+
+    await setDoc(doc(db, "users", createdAuthUser.uid), {
+      uid: createdAuthUser.uid,
+      email,
+      taiKhoan,
+      hoTen,
+      department,
+      capBac,
+      role: "user",
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    document.getElementById("registerForm").reset();
+    await signOut(auth);
+    currentFirebaseUser = null;
+    currentUserProfile = null;
+    showLoginScreen(email);
+    showToast(t("auth.registerSuccess"), "success");
+  } catch (error) {
+    console.error(error);
+    if (createdAuthUser) {
+      try { await deleteUser(createdAuthUser); } catch (e) { console.warn(e); }
+    }
+    showToast(getRegisterErrorMessage(error), "error");
+  } finally {
+    isHandlingRegistration = false;
+    setButtonLoading(registerBtn, false);
+    showPageLoader(false);
+  }
+}
+
+function validateRegisterForm({ email, password, confirmPassword, taiKhoan, hoTen, department, capBac }) {
+  if (!email || !password || !confirmPassword || !taiKhoan || !hoTen || !department || !capBac) {
+    return t("auth.fillRegisterInfo");
+  }
+  if (password.length < 6) return t("auth.passwordMin6");
+  if (password !== confirmPassword) return t("auth.passwordMismatch");
+  if (!DEPARTMENT_OPTIONS.includes(department)) return t("auth.fillRegisterInfo");
+  if (!CAP_BAC_OPTIONS.includes(capBac)) return t("auth.fillRegisterInfo");
+  return "";
+}
+
+async function handleLogout() {
+  try {
+    await signOut(auth);
+    showToast(t("auth.loggedOut"), "info");
+  } catch (error) {
+    console.error(error);
+    showToast(t("common.logoutFailed"), "error");
+  }
+}
+
+function togglePasswordVisibility() {
+  const input = document.getElementById("passwordInput");
+  const btn = document.getElementById("togglePasswordBtn");
+  if (!input || !btn) return;
+  if (input.type === "password") {
+    input.type = "text";
+    btn.textContent = t("auth.hidePassword");
+  } else {
+    input.type = "password";
+    btn.textContent = t("auth.showPassword");
+  }
+}
+
+async function safeSignOut() {
+  try { await signOut(auth); } catch (e) { console.warn(e); }
+}
+
+async function loadCurrentUserProfile(uid) {
+  const docSnap = await getDoc(doc(db, "users", uid));
+  if (!docSnap.exists()) throw new Error(t("auth.profileNotFound"));
+  const profile = docSnap.data();
+  return {
+    uid,
+    email: profile.email || "",
+    taiKhoan: profile.taiKhoan || "",
+    hoTen: profile.hoTen || "",
+    department: profile.department || "",
+    capBac: profile.capBac || "",
+    role: profile.role || "user",
+    status: profile.status || "pending",
+    passwordChangedAt: profile.passwordChangedAt || null,
+    createdAt: profile.createdAt || null
+  };
+}
+
+/** Chỉ kiểm tra trạng thái tài khoản — chưa phân quyền theo cấp bậc. */
+function ensureAuthorizedAccess(profile) {
+  if (!profile) throw new Error(t("auth.invalidProfile"));
+  const status = profile.status === "inactive" ? "pending" : profile.status;
+  if (status === "pending") throw new Error(t("auth.pendingApproval"));
+  if (status === "locked") throw new Error(t("auth.accountLocked"));
+  if (status !== "active") throw new Error(t("auth.notActivated"));
+}
+
+function shouldSignOutOnAccessError(message) {
+  const normalized = String(message || "").toLowerCase();
+  return [
+    "chờ quản trị", "pending", "bị khóa", "locked",
+    "chưa được kích hoạt", "not activated", "không tìm thấy hồ sơ", "profile not found"
+  ].some((k) => normalized.includes(k));
+}
+
+function showLoginScreen(prefillEmail = "") {
+  document.getElementById("appScreen")?.classList.add("hidden");
+  document.getElementById("loginScreen")?.classList.remove("hidden");
+  document.getElementById("authShell")?.classList.remove("hidden");
+  if (prefillEmail) {
+    const emailInput = document.getElementById("emailInput");
+    if (emailInput) emailInput.value = prefillEmail;
+  }
+  showAuthTab("login");
+}
+
+async function showAppScreen(profile, firebaseUser) {
+  document.getElementById("loginScreen")?.classList.add("hidden");
+  document.getElementById("authShell")?.classList.add("hidden");
+  document.getElementById("appScreen")?.classList.remove("hidden");
+  fillUserDisplay(profile, firebaseUser);
+  bindPasswordExpiry(profile, firebaseUser);
+  syncFormDefaults();
+  setActiveTab(activeTab || "idea");
+  await loadKaizenListSafe();
+}
+
+function fillUserDisplay(profile, firebaseUser) {
+  const name = profile.hoTen || "-";
+  document.getElementById("displayHoTen").textContent = name;
+  document.getElementById("displayTaiKhoan").textContent = profile.taiKhoan || "-";
+  document.getElementById("displayDepartment").textContent = profile.department || "-";
+  document.getElementById("displayCapBac").textContent = profile.capBac || "-";
+  document.getElementById("sidebarUserName").textContent = name;
+  document.getElementById("sidebarUserEmail").textContent = firebaseUser.email || profile.email || "";
+  document.getElementById("appUserInitials").textContent = getInitials(name);
+
+  const proposer = document.getElementById("ideaProposer");
+  const proposer2 = document.getElementById("ideaProposer2");
+  const dept = document.getElementById("ideaDept");
+  if (proposer && !proposer.value) proposer.value = name;
+  if (proposer2 && !proposer2.value) proposer2.value = name;
+  if (dept && !dept.value) dept.value = profile.department || "";
+  const reportDept = document.getElementById("reportDept");
+  if (reportDept && !reportDept.value) reportDept.value = profile.department || "";
+}
+
+function getInitials(name) {
+  const parts = String(name || "U").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function syncFormDefaults() {
+  const today = new Date().toISOString().split("T")[0];
+  const ideaDate = document.getElementById("ideaDate");
+  const reportDate = document.getElementById("reportDate");
+  if (ideaDate && !ideaDate.value) ideaDate.value = today;
+  if (reportDate && !reportDate.value) reportDate.value = today;
+}
+
+function setActiveTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll(".kz-tab, .admin-nav-item[data-tab]").forEach((el) => {
+    el.classList.toggle("active", el.dataset.tab === tab);
+  });
+  document.getElementById("tabIdea")?.classList.toggle("hidden", tab !== "idea");
+  document.getElementById("tabReport")?.classList.toggle("hidden", tab !== "report");
+  document.getElementById("tabList")?.classList.toggle("hidden", tab !== "list");
+  if (tab === "list") loadKaizenListSafe();
+}
+
+function renderClassificationButtons() {
+  const wrap = document.getElementById("ideaClassification");
+  if (!wrap) return;
+  wrap.innerHTML = CLASSIFICATION_CODES.map((item) => {
+    const active = selectedClassification.includes(item.code);
+    return `<button type="button" class="kz-class-btn${active ? " active" : ""}" data-code="${item.code}">${item.code}</button>`;
+  }).join("");
+  wrap.querySelectorAll(".kz-class-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const code = btn.dataset.code;
+      if (selectedClassification.includes(code)) {
+        selectedClassification = selectedClassification.filter((c) => c !== code);
+      } else {
+        selectedClassification = [...selectedClassification, code];
+      }
+      renderClassificationButtons();
+    });
+  });
+}
+
+function updateMetricsUI() {
+  const beforeWH = Number(document.getElementById("beforeWorkHour")?.value) || 0;
+  const afterWH = Number(document.getElementById("afterWorkHour")?.value) || 0;
+  const beforeNM = Number(document.getElementById("beforeNearMiss")?.value) || 0;
+  const afterNM = Number(document.getElementById("afterNearMiss")?.value) || 0;
+  const daily = Number(document.getElementById("dailyHoursSaved")?.value) || 0;
+  const days = Number(document.getElementById("monthlyDays")?.value) || 0;
+  const rate = Number(document.getElementById("hourlyCost")?.value) || 0;
+
+  const diffWH = afterWH - beforeWH;
+  const diffNM = afterNM - beforeNM;
+  const total = calcTotalSavings(daily, days, rate);
+
+  const diffWhEl = document.getElementById("diffWorkHour");
+  const diffNmEl = document.getElementById("diffNearMiss");
+  const totalEl = document.getElementById("totalCostSavings");
+  if (diffWhEl) {
+    diffWhEl.textContent = `${diffWH}h`;
+    diffWhEl.className = diffWH <= 0 ? "text-ok" : "text-bad";
+  }
+  if (diffNmEl) diffNmEl.textContent = String(diffNM);
+  if (totalEl) totalEl.textContent = `$${total.toFixed(2)}`;
+}
+
+function syncIdeaToReportFields() {
+  const map = [
+    ["ideaKaizenId", "reportKaizenId"],
+    ["ideaDate", "reportDate"],
+    ["ideaDept", "reportDept"],
+    ["ideaAfterDescription", "reportAfterDescription"],
+    ["ideaProblemDesc", "reportBeforeDescription"]
+  ];
+  map.forEach(([from, to]) => {
+    const a = document.getElementById(from);
+    const b = document.getElementById(to);
+    if (a && b && a.value && !b.value) b.value = a.value;
+  });
+}
+
+function collectFormPayload(mode) {
+  const kaizenId = (document.getElementById(mode === "report" ? "reportKaizenId" : "ideaKaizenId")?.value || "").trim();
+  const date = document.getElementById(mode === "report" ? "reportDate" : "ideaDate")?.value || "";
+  const dept = document.getElementById(mode === "report" ? "reportDept" : "ideaDept")?.value || "";
+  const proposer = document.getElementById("ideaProposer")?.value || currentUserProfile?.hoTen || "";
+  const improvedContent = document.getElementById("ideaImprovedContent")?.value.trim() || "";
+
+  const dailyHoursSaved = Number(document.getElementById("dailyHoursSaved")?.value) || 0;
+  const monthlyDays = Number(document.getElementById("monthlyDays")?.value) || 0;
+  const hourlyCost = Number(document.getElementById("hourlyCost")?.value) || 0;
+
+  return {
+    kaizenId,
+    date,
+    dept,
+    proposer,
+    checked: document.getElementById("ideaChecked")?.value || "",
+    approved: document.getElementById("ideaApproved")?.value || "",
+    improvedContent,
+    classification: [...selectedClassification],
+    problemDesc: document.getElementById("ideaProblemDesc")?.value || "",
+    improvementPlan: document.getElementById("ideaImprovementPlan")?.value || "",
+    improvementActions: document.getElementById("ideaImprovementActions")?.value || "",
+    riskIdentification: document.getElementById("ideaRiskIdentification")?.value || "",
+    afterDescriptionIdea: document.getElementById("ideaAfterDescription")?.value || "",
+    sopNo: document.getElementById("reportSopNo")?.value || "",
+    productName: document.getElementById("reportProductName")?.value || "",
+    process: document.getElementById("reportProcess")?.value || "",
+    target: document.getElementById("reportTarget")?.value || "",
+    targetDetail: document.getElementById("reportTargetDetail")?.value || "",
+    beforeDescription: document.getElementById("reportBeforeDescription")?.value || "",
+    afterDescription: document.getElementById("reportAfterDescription")?.value || "",
+    materialsAndCost: document.getElementById("reportMaterialsAndCost")?.value || "",
+    beforeWorkHour: Number(document.getElementById("beforeWorkHour")?.value) || 0,
+    afterWorkHour: Number(document.getElementById("afterWorkHour")?.value) || 0,
+    beforeNearMiss: Number(document.getElementById("beforeNearMiss")?.value) || 0,
+    afterNearMiss: Number(document.getElementById("afterNearMiss")?.value) || 0,
+    dailyHoursSaved,
+    monthlyDays,
+    hourlyCost,
+    totalSavings: calcTotalSavings(dailyHoursSaved, monthlyDays, hourlyCost),
+    qualitativeEffect: document.getElementById("qualitativeEffect")?.value || "",
+    status: mode === "report" ? KAIZEN_STATUS.REPORT : KAIZEN_STATUS.IDEA,
+    uid: currentFirebaseUser?.uid || "",
+    email: currentFirebaseUser?.email || "",
+    taiKhoan: currentUserProfile?.taiKhoan || "",
+    department: currentUserProfile?.department || "",
+    capBac: currentUserProfile?.capBac || ""
+  };
+}
+
+async function saveKaizen(mode) {
+  if (isSaving) return;
+  if (!currentFirebaseUser || !currentUserProfile) {
+    showToast(t("common.notLoggedIn"), "error");
+    return;
+  }
+
+  const payload = collectFormPayload(mode);
+  if (!payload.kaizenId) {
+    showToast(t("kaizen.requireId"), "error");
+    return;
+  }
+  if (!payload.improvedContent && mode === "idea") {
+    showToast(t("kaizen.requireContent"), "error");
+    return;
+  }
+
+  isSaving = true;
+  showPageLoader(true, t("common.loading"));
+
+  try {
+    const beforeFile = document.getElementById(mode === "report" ? "reportBeforeImage" : "ideaBeforeImage")?.files?.[0];
+    const afterFile = document.getElementById(mode === "report" ? "reportAfterImage" : "ideaAfterImage")?.files?.[0];
+
+    if (beforeFile) {
+      payload.beforeImageUrl = await uploadKaizenImage(beforeFile, payload.kaizenId, "before");
+    }
+    if (afterFile) {
+      payload.afterImageUrl = await uploadKaizenImage(afterFile, payload.kaizenId, "after");
+    }
+
+    await saveKaizenRecord(payload);
+    showToast(t("kaizen.saved", { id: payload.kaizenId }), "success");
+    await loadKaizenListSafe();
+    if (mode === "idea") setActiveTab("list");
+    else setActiveTab("list");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || t("kaizen.saveFailed"), "error");
+  } finally {
+    isSaving = false;
+    showPageLoader(false);
+  }
+}
+
+async function loadKaizenListSafe() {
+  try {
+    kaizenListCache = await fetchKaizenList();
+    renderKaizenTable();
+  } catch (error) {
+    console.warn(error);
+    kaizenListCache = [];
+    renderKaizenTable();
+  }
+}
+
+function renderKaizenTable() {
+  const tbody = document.getElementById("kaizenTableBody");
+  if (!tbody) return;
+
+  if (!kaizenListCache.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-table">${t("common.noData")}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = kaizenListCache.map((item) => {
+    const savings = item.totalSavings != null
+      ? Number(item.totalSavings).toFixed(2)
+      : calcTotalSavings(item.dailyHoursSaved, item.monthlyDays, item.hourlyCost).toFixed(2);
+    const classes = (item.classification || []).map((c) => `<span class="kz-chip">${escapeHtml(c)}</span>`).join(" ");
+    const statusKey = item.status === KAIZEN_STATUS.REPORT ? "kaizen.status.report_done" : "kaizen.status.idea_new";
+    return `
+      <tr>
+        <td class="kz-mono">${escapeHtml(item.kaizenId || item.id)}</td>
+        <td>${escapeHtml(item.date || "-")}</td>
+        <td>${escapeHtml(item.dept || item.department || "-")}</td>
+        <td>${escapeHtml(item.improvedContent || "-")}</td>
+        <td>${classes || "-"}</td>
+        <td>${escapeHtml(item.proposer || "-")}</td>
+        <td class="kz-money">$${savings}</td>
+        <td><span class="status-badge status-active">${t(statusKey)}</span></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function resetFormForNew() {
+  selectedClassification = [];
+  renderClassificationButtons();
+  const today = new Date().toISOString().split("T")[0];
+  [
+    "ideaKaizenId", "ideaImprovedContent", "ideaProblemDesc", "ideaImprovementPlan",
+    "ideaImprovementActions", "ideaRiskIdentification", "ideaAfterDescription",
+    "ideaChecked", "ideaApproved", "reportKaizenId", "reportSopNo", "reportProductName",
+    "reportProcess", "reportTarget", "reportTargetDetail", "reportBeforeDescription",
+    "reportAfterDescription", "reportMaterialsAndCost", "qualitativeEffect"
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  document.getElementById("ideaDate").value = today;
+  document.getElementById("reportDate").value = today;
+  document.getElementById("beforeWorkHour").value = 0;
+  document.getElementById("afterWorkHour").value = 0;
+  document.getElementById("beforeNearMiss").value = 0;
+  document.getElementById("afterNearMiss").value = 0;
+  document.getElementById("dailyHoursSaved").value = 0;
+  document.getElementById("monthlyDays").value = 22;
+  document.getElementById("hourlyCost").value = 5;
+  if (currentUserProfile) {
+    document.getElementById("ideaProposer").value = currentUserProfile.hoTen || "";
+    document.getElementById("ideaProposer2").value = currentUserProfile.hoTen || "";
+    document.getElementById("ideaDept").value = currentUserProfile.department || "";
+    document.getElementById("reportDept").value = currentUserProfile.department || "";
+  }
+  updateMetricsUI();
+}
+
+function getFirebaseErrorMessage(error) {
+  switch (error?.code) {
+    case "auth/invalid-email": return t("auth.error.invalidEmail");
+    case "auth/user-disabled": return t("auth.error.userDisabled");
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+    case "auth/user-not-found": return t("auth.error.wrongPassword");
+    case "auth/too-many-requests": return t("auth.error.tooManyRequests");
+    case "auth/network-request-failed": return t("auth.error.network");
+    default: return error?.message || t("auth.error.unknown");
+  }
+}
+
+function getRegisterErrorMessage(error) {
+  switch (error?.code) {
+    case "auth/email-already-in-use": return t("auth.error.emailExists");
+    case "auth/weak-password": return t("auth.error.weakPassword");
+    case "permission-denied": return t("auth.error.permissionDenied");
+    default: return getFirebaseErrorMessage(error) || t("auth.error.registerFailed");
+  }
+}
+
+function showPageLoader(show, text = t("common.loading")) {
+  const loader = document.getElementById("pageLoader");
+  const loaderText = document.getElementById("pageLoaderText");
+  if (!loader) return;
+  if (loaderText && text) loaderText.textContent = text;
+  loader.classList.toggle("hidden", !show);
+}
+
+function setButtonLoading(button, isLoading, loadingText = t("common.loading")) {
+  if (!button) return;
+  if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
+  button.disabled = isLoading;
+  button.textContent = isLoading ? loadingText : button.dataset.originalText;
+}
+
+function showToast(message, type = "info") {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  toast.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.add("hidden"), 3200);
+}
+
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.textContent = value == null ? "" : String(value);
+  return div.innerHTML;
+}
