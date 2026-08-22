@@ -16,7 +16,6 @@ import {
 import {
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager,
   doc,
   getDoc,
   setDoc,
@@ -70,9 +69,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
+  localCache: persistentLocalCache()
 });
 
 const storage = getStorage(app);

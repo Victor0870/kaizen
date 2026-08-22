@@ -96,26 +96,32 @@ async function initApp() {
     return;
   }
 
-  const firebase = await import("./firebase-config.js");
-  auth = firebase.auth;
-  db = firebase.db;
-  authPersistenceReady = firebase.authPersistenceReady;
-  initAppCheck = firebase.initAppCheck;
-  onAuthStateChanged = firebase.onAuthStateChanged;
-  signInWithEmailAndPassword = firebase.signInWithEmailAndPassword;
-  createUserWithEmailAndPassword = firebase.createUserWithEmailAndPassword;
-  signOut = firebase.signOut;
-  deleteUser = firebase.deleteUser;
-  doc = firebase.doc;
-  getDoc = firebase.getDoc;
-  setDoc = firebase.setDoc;
-  serverTimestamp = firebase.serverTimestamp;
+  try {
+    const firebase = await import("./firebase-config.js");
+    auth = firebase.auth;
+    db = firebase.db;
+    authPersistenceReady = firebase.authPersistenceReady;
+    initAppCheck = firebase.initAppCheck;
+    onAuthStateChanged = firebase.onAuthStateChanged;
+    signInWithEmailAndPassword = firebase.signInWithEmailAndPassword;
+    createUserWithEmailAndPassword = firebase.createUserWithEmailAndPassword;
+    signOut = firebase.signOut;
+    deleteUser = firebase.deleteUser;
+    doc = firebase.doc;
+    getDoc = firebase.getDoc;
+    setDoc = firebase.setDoc;
+    serverTimestamp = firebase.serverTimestamp;
 
-  await initAppCheck();
-  await authPersistenceReady;
-  await loadRegisterCatalog();
-  populateRegisterSelects();
-  observeAuthState();
+    await initAppCheck();
+    await authPersistenceReady;
+    observeAuthState();
+    void loadRegisterCatalog().then(() => populateRegisterSelects());
+  } catch (error) {
+    console.error("Không thể khởi tạo Firebase:", error);
+    showPageLoader(false);
+    showLoginScreen();
+    showToast(t("auth.initFailed"), "error");
+  }
 }
 
 async function loadRegisterCatalog() {
@@ -242,8 +248,24 @@ function showAuthTab(tabName) {
 function observeAuthState() {
   showPageLoader(true, t("common.checkingSession"));
 
+  let authSettled = false;
+  const authTimeout = window.setTimeout(() => {
+    if (authSettled) return;
+    authSettled = true;
+    console.warn("Firebase auth state timeout");
+    showPageLoader(false);
+    showLoginScreen();
+    showToast(t("auth.sessionTimeout"), "error");
+  }, 12000);
+
   onAuthStateChanged(auth, async (user) => {
-    if (isHandlingRegistration) return;
+    if (isHandlingRegistration) {
+      showPageLoader(false);
+      return;
+    }
+    if (authSettled) return;
+    authSettled = true;
+    window.clearTimeout(authTimeout);
 
     try {
       if (!user) {
@@ -517,8 +539,8 @@ async function showAppScreen(profile, firebaseUser) {
   syncFormDefaults();
   applyRoleBasedUI();
   setActiveTab(activeTab || "idea");
-  await loadKaizenListSafe();
   autoFillKaizenId();
+  void loadKaizenListSafe();
 }
 
 function fillUserDisplay(profile, firebaseUser) {
