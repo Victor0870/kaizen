@@ -33,7 +33,7 @@
   --radius-md: 12px;
   --radius-sm: 10px;
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Cormorant Garamond", "Times New Roman", serif;
+  --font-display: var(--font-sans);
 }
 
 * {

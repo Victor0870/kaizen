@@ -789,7 +789,8 @@
 .kz-list-head p { margin: 0.25rem 0 0; font-size: 0.75rem; color: #5c470c; }
 
 .kz-table .kz-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 800;
   color: #8c6a12;
 }
