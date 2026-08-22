@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css?v=20260822h">
-  <link rel="stylesheet" href="./kaizen.css?v=20260822k">
+  <link rel="stylesheet" href="./kaizen.css?v=20260822o">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -288,6 +288,17 @@
                 </div>
               </div>
 
+              <div id="managerReviewPanel" class="kz-manager-review hidden">
+                <h3 data-i18n="progress.managerReviewTitle">Phê duyệt phiếu ý tưởng</h3>
+                <label class="kz-label" for="managerReviewComment" data-i18n="progress.managerComment">Ý kiến người phê duyệt</label>
+                <textarea id="managerReviewComment" rows="3" data-i18n-placeholder="progress.managerCommentPlaceholder"></textarea>
+                <div class="kz-manager-review-actions">
+                  <button type="button" class="ghost-btn" data-review-decision="revision" data-i18n="progress.requestRevision">Yêu cầu sửa lại</button>
+                  <button type="button" class="btn-action reject" data-review-decision="reject" data-i18n="progress.rejectIdea">Không phê duyệt</button>
+                  <button type="button" class="primary-btn" data-review-decision="approve" data-i18n="progress.approveIdea">Phê duyệt</button>
+                </div>
+              </div>
+
               <div class="kz-footer-actions">
                 <button type="button" id="saveDraftBtn" class="ghost-btn" data-i18n="kaizen.saveDraft">Lưu</button>
                 <button type="button" id="submitIdeaBtn" class="primary-btn" data-i18n="kaizen.submitIdea">Gửi phê duyệt</button>
@@ -382,16 +393,6 @@
               </div>
             </div>
             <div id="progressTimeline" class="kz-progress-timeline"></div>
-            <div id="managerReviewPanel" class="kz-manager-review hidden">
-              <h3 data-i18n="progress.managerReviewTitle">Phê duyệt phiếu ý tưởng</h3>
-              <label class="kz-label" for="managerReviewComment" data-i18n="progress.managerComment">Ý kiến người phê duyệt</label>
-              <textarea id="managerReviewComment" rows="3" data-i18n-placeholder="progress.managerCommentPlaceholder"></textarea>
-              <div class="kz-manager-review-actions">
-                <button type="button" class="ghost-btn" data-review-decision="revision" data-i18n="progress.requestRevision">Yêu cầu sửa lại</button>
-                <button type="button" class="btn-action reject" data-review-decision="reject" data-i18n="progress.rejectIdea">Không phê duyệt</button>
-                <button type="button" class="primary-btn" data-review-decision="approve" data-i18n="progress.approveIdea">Phê duyệt</button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -432,6 +433,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260822n"></script>
+  <script type="module" src="./script.js?v=20260822o"></script>
 </body>
 </html>

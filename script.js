@@ -1135,7 +1135,7 @@ function applyIdeaFormState(record) {
   if (tabIdea) {
     tabIdea.classList.toggle("kz-form-locked", !editable);
     tabIdea.querySelectorAll("input, textarea, select, button.kz-class-btn").forEach((el) => {
-      if (el.closest(".kz-footer-actions")) return;
+      if (el.closest(".kz-footer-actions") || el.closest(".kz-manager-review")) return;
       if (el.id === "ideaKaizenId") return;
       if (el.type === "file" || el.classList.contains("kz-class-btn")) {
         el.disabled = !editable;
@@ -1161,6 +1161,18 @@ function applyIdeaFormState(record) {
   document.getElementById("resubmitIdeaBtn")?.classList.toggle("hidden", status !== KAIZEN_STATUS.REVISION_REQUESTED);
   document.getElementById("goReportBtn")?.classList.toggle("hidden",
     status !== KAIZEN_STATUS.APPROVED && status !== KAIZEN_STATUS.IN_PROGRESS);
+
+  const reviewPanel = document.getElementById("managerReviewPanel");
+  const showManagerReview = !!record &&
+    status === KAIZEN_STATUS.SUBMITTED &&
+    canApproveL1(currentUserProfile?.role, currentUserProfile, record);
+  if (reviewPanel) {
+    reviewPanel.classList.toggle("hidden", !showManagerReview);
+    if (showManagerReview) {
+      const commentBox = document.getElementById("managerReviewComment");
+      if (commentBox) commentBox.value = "";
+    }
+  }
 }
 
 function applyRoleBasedUI() {
@@ -1233,17 +1245,6 @@ async function renderProgressView(docId) {
     `;
   }).join("");
 
-  const reviewPanel = document.getElementById("managerReviewPanel");
-  const showReview = status === KAIZEN_STATUS.SUBMITTED &&
-    canApproveL1(role, currentUserProfile, record);
-  if (reviewPanel) {
-    reviewPanel.classList.toggle("hidden", !showReview);
-    if (showReview) {
-      const commentBox = document.getElementById("managerReviewComment");
-      if (commentBox) commentBox.value = "";
-    }
-  }
-
   applyI18n(timeline);
   bindProgressActions(record);
 }
@@ -1291,7 +1292,7 @@ function renderProgressStepAction(stepKey, record, ctx) {
   if (stepKey === "l1_approval" &&
       status === KAIZEN_STATUS.SUBMITTED &&
       canApproveL1(role, currentUserProfile, record)) {
-    return `<span class="kz-progress-waiting">${t("progress.managerReviewHint")}</span>`;
+    return `<span class="kz-progress-waiting">${t("progress.reviewOnIdeaTab")}</span>`;
   }
 
   if (stepKey === "l2_approval" &&
@@ -1350,7 +1351,7 @@ function bindProgressActions(record) {
 }
 
 async function handleManagerReview(decision) {
-  const docId = selectedProgressKaizenId;
+  const docId = editingKaizenDocId || selectedProgressKaizenId;
   if (!docId) return;
 
   const record = kaizenListCache.find((item) => item.id === docId);
@@ -1382,7 +1383,16 @@ async function handleManagerReview(decision) {
     await managerReviewKaizen(docId, decision, comment, currentUserProfile);
     showToast(t(successKeys[decision]), "success");
     await loadKaizenListSafe();
-    renderProgressView(docId);
+    const updated = kaizenListCache.find((item) => item.id === docId);
+    if (updated) {
+      loadKaizenIntoForms(updated, "idea");
+    }
+    if (activeTab === "progress" && selectedProgressKaizenId) {
+      renderProgressView(selectedProgressKaizenId);
+    }
+    if (listViewMode === "pending_approval") {
+      setActiveTab("list", "all", "pending_approval");
+    }
   } finally {
     showPageLoader(false);
   }
@@ -1423,6 +1433,7 @@ async function handleOpenProgressReport(record) {
 
 function loadKaizenIntoForms(record, mode = "idea") {
   editingKaizenDocId = record.id;
+  selectedProgressKaizenId = record.id;
   selectedClassification = Array.isArray(record.classification) ? [...record.classification] : [];
   renderClassificationButtons();
 

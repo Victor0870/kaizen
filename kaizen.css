@@ -356,9 +356,15 @@
 }
 
 .kz-manager-review {
-  margin-top: 1.5rem;
+  margin-top: 1.25rem;
   padding-top: 1.25rem;
   border-top: 1px solid rgba(201, 162, 39, 0.35);
+}
+
+.kz-form-locked .kz-manager-review textarea,
+.kz-form-locked .kz-manager-review button {
+  pointer-events: auto;
+  opacity: 1;
 }
 
 .kz-manager-review h3 {
