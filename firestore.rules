@@ -81,7 +81,7 @@ service cloud.firestore {
                     request.auth.uid == userId &&
                     request.resource.data.uid == request.auth.uid &&
                     request.resource.data.role == "user" &&
-                    request.resource.data.status == "pending" &&
+                    request.resource.data.status in ["pending", "active"] &&
                     request.resource.data.email == request.auth.token.email &&
                     request.resource.data.taiKhoan is string &&
                     request.resource.data.hoTen is string &&

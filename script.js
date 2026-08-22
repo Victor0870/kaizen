@@ -203,10 +203,11 @@ function observeAuthState() {
       }
 
       currentFirebaseUser = user;
-      const profile = await loadCurrentUserProfile(user.uid);
+      const profile = await loadOrProvisionUserProfile(user);
       ensureAuthorizedAccess(profile);
       currentUserProfile = profile;
       await showAppScreen(profile, user);
+      showToast(t("auth.loginSuccess"), "success");
     } catch (error) {
       console.error(error);
       const message = error.message || t("auth.loadProfileFailed");
@@ -240,7 +241,7 @@ async function handleLogin(event) {
   try {
     await signInWithEmailAndPassword(auth, email, password);
     document.getElementById("passwordInput").value = "";
-    showToast(t("auth.loginSuccess"), "success");
+    // Thành công thật sự khi observeAuthState tải được hồ sơ và vào app.
   } catch (error) {
     console.error(error);
     showToast(getFirebaseErrorMessage(error), "error");
@@ -353,10 +354,58 @@ async function safeSignOut() {
   try { await signOut(auth); } catch (e) { console.warn(e); }
 }
 
-async function loadCurrentUserProfile(uid) {
-  const docSnap = await getDoc(doc(db, "users", uid));
-  if (!docSnap.exists()) throw new Error(t("auth.profileNotFound"));
-  const profile = docSnap.data();
+async function loadOrProvisionUserProfile(firebaseUser) {
+  const uid = firebaseUser.uid;
+  let docSnap;
+  try {
+    docSnap = await getDoc(doc(db, "users", uid));
+  } catch (error) {
+    console.error(error);
+    if (error?.code === "permission-denied") {
+      throw new Error(t("auth.firestorePermissionDenied"));
+    }
+    throw new Error(error?.message || t("auth.loadProfileFailed"));
+  }
+
+  if (docSnap.exists()) {
+    return mapUserProfile(uid, docSnap.data());
+  }
+
+  // User tạo trên Firebase Auth Console chưa có document Firestore → tự tạo hồ sơ active.
+  const email = String(firebaseUser.email || "").toLowerCase();
+  const localPart = email.split("@")[0] || "user";
+  const payload = {
+    uid,
+    email,
+    taiKhoan: localPart.slice(0, 32),
+    hoTen: localPart,
+    department: "OTHER",
+    capBac: "Staff",
+    role: "user",
+    status: "active",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    provisionedFromAuth: true
+  };
+
+  try {
+    await setDoc(doc(db, "users", uid), payload);
+  } catch (error) {
+    console.error(error);
+    if (error?.code === "permission-denied") {
+      throw new Error(t("auth.provisionDenied"));
+    }
+    throw new Error(error?.message || t("auth.profileNotFound"));
+  }
+
+  return mapUserProfile(uid, {
+    ...payload,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+}
+
+function mapUserProfile(uid, profile) {
   return {
     uid,
     email: profile.email || "",
@@ -369,6 +418,12 @@ async function loadCurrentUserProfile(uid) {
     passwordChangedAt: profile.passwordChangedAt || null,
     createdAt: profile.createdAt || null
   };
+}
+
+async function loadCurrentUserProfile(uid) {
+  const docSnap = await getDoc(doc(db, "users", uid));
+  if (!docSnap.exists()) throw new Error(t("auth.profileNotFound"));
+  return mapUserProfile(uid, docSnap.data());
 }
 
 /** Chỉ kiểm tra trạng thái tài khoản — chưa phân quyền theo cấp bậc. */
