@@ -96,8 +96,20 @@ async function initApp() {
     return;
   }
 
+  const bootTimeout = window.setTimeout(() => {
+    console.warn("Khởi tạo ứng dụng quá lâu — hiện màn hình đăng nhập");
+    showPageLoader(false);
+    showLoginScreen();
+    showToast(t("auth.sessionTimeout"), "error");
+  }, 10000);
+
   try {
-    const firebase = await import("./firebase-config.js");
+    const firebase = await Promise.race([
+      import("./firebase-config.js"),
+      new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error("firebase-config-timeout")), 8000);
+      })
+    ]);
     auth = firebase.auth;
     db = firebase.db;
     authPersistenceReady = firebase.authPersistenceReady;
@@ -112,11 +124,20 @@ async function initApp() {
     setDoc = firebase.setDoc;
     serverTimestamp = firebase.serverTimestamp;
 
-    await initAppCheck();
-    await authPersistenceReady;
+    await Promise.race([
+      initAppCheck().catch((error) => console.warn(error)),
+      new Promise((resolve) => window.setTimeout(resolve, 2000))
+    ]);
+    await Promise.race([
+      authPersistenceReady,
+      new Promise((resolve) => window.setTimeout(resolve, 3000))
+    ]);
+
+    window.clearTimeout(bootTimeout);
     observeAuthState();
     void loadRegisterCatalog().then(() => populateRegisterSelects());
   } catch (error) {
+    window.clearTimeout(bootTimeout);
     console.error("Không thể khởi tạo Firebase:", error);
     showPageLoader(false);
     showLoginScreen();
@@ -245,54 +266,70 @@ function showAuthTab(tabName) {
   document.getElementById("registerPanel")?.classList.toggle("hidden", !isRegister);
 }
 
+function withTimeout(promise, ms, label = "timeout") {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error(label)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer != null) window.clearTimeout(timer);
+  });
+}
+
 function observeAuthState() {
   showPageLoader(true, t("common.checkingSession"));
 
-  let authSettled = false;
-  const authTimeout = window.setTimeout(() => {
-    if (authSettled) return;
-    authSettled = true;
-    console.warn("Firebase auth state timeout");
+  let finished = false;
+  const finish = (showLogin = false) => {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(authTimeout);
     showPageLoader(false);
-    showLoginScreen();
+    if (showLogin) showLoginScreen();
+  };
+
+  const authTimeout = window.setTimeout(() => {
+    console.warn("Firebase auth/profile timeout");
+    finish(true);
     showToast(t("auth.sessionTimeout"), "error");
-  }, 12000);
+  }, 10000);
 
   onAuthStateChanged(auth, async (user) => {
     if (isHandlingRegistration) {
-      showPageLoader(false);
+      finish(false);
       return;
     }
-    if (authSettled) return;
-    authSettled = true;
-    window.clearTimeout(authTimeout);
+    if (finished) return;
 
     try {
       if (!user) {
         currentFirebaseUser = null;
         currentUserProfile = null;
-        showLoginScreen();
+        finish(true);
         return;
       }
 
       currentFirebaseUser = user;
-      const profile = await loadOrProvisionUserProfile(user);
+      const profile = await withTimeout(
+        loadOrProvisionUserProfile(user),
+        8000,
+        "profile-timeout"
+      );
       ensureAuthorizedAccess(profile);
       currentUserProfile = profile;
       await showAppScreen(profile, user);
+      finish(false);
       showToast(t("auth.loginSuccess"), "success");
     } catch (error) {
       console.error(error);
-      const message = error.message || t("auth.loadProfileFailed");
+      const message = error?.message === "profile-timeout"
+        ? t("auth.sessionTimeout")
+        : (error.message || t("auth.loadProfileFailed"));
       if (shouldSignOutOnAccessError(message)) {
         await safeSignOut();
-        showLoginScreen();
-      } else {
-        showLoginScreen();
       }
+      finish(true);
       showToast(message, "error");
-    } finally {
-      showPageLoader(false);
     }
   });
 }

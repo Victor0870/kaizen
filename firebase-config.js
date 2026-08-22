@@ -15,7 +15,6 @@ import {
 
 import {
   initializeFirestore,
-  persistentLocalCache,
   doc,
   getDoc,
   setDoc,
@@ -68,9 +67,9 @@ const APP_CHECK_RECAPTCHA_SITE_KEY = "";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache()
-});
+// Dùng cache mặc định (memory) — persistentLocalCache/IndexedDB dễ treo trên
+// GitHub Pages / nhiều tab và làm spinner "Đang kiểm tra phiên..." quay mãi.
+const db = initializeFirestore(app);
 
 const storage = getStorage(app);
 const functions = getFunctions(app, "asia-southeast1");
