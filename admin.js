@@ -18,7 +18,8 @@ import { initI18n, t, onLanguageChange, applyI18n, getLang } from "./i18n.js";
 import { bindPasswordExpiry } from "./password-expiry.js";
 import {
   ensureCatalogDefaults,
-  saveCatalog
+  saveCatalog,
+  normalizeDepartmentsList
 } from "./catalog-service.js";
 import { USER_ROLES, normalizeRole } from "./constants.js";
 
@@ -81,6 +82,12 @@ function bindEvents() {
   document.getElementById("addDepartmentBtn")?.addEventListener("click", () => addCatalogItem("departments"));
   document.getElementById("addRankBtn")?.addEventListener("click", () => addCatalogItem("ranks"));
   document.getElementById("newDepartmentInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCatalogItem("departments");
+    }
+  });
+  document.getElementById("newDepartmentCodeInput")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       addCatalogItem("departments");
@@ -577,12 +584,17 @@ function renderCatalogList(listId, items, type) {
     return;
   }
 
-  listEl.innerHTML = items.map((item, index) => `
+  listEl.innerHTML = items.map((item, index) => {
+    const label = type === "departments"
+      ? `${item.name} (${item.code})`
+      : String(item);
+    return `
     <li class="admin-catalog-item">
-      <span>${escapeHtml(item)}</span>
+      <span>${escapeHtml(label)}</span>
       <button type="button" class="btn-action reject admin-catalog-remove" data-type="${type}" data-index="${index}" aria-label="${escapeHtml(t("admin.catalog.remove"))}">×</button>
     </li>
-  `).join("");
+  `;
+  }).join("");
 
   listEl.querySelectorAll(".admin-catalog-remove").forEach((button) => {
     button.addEventListener("click", () => removeCatalogItem(button.dataset.type, Number(button.dataset.index)));
@@ -590,8 +602,12 @@ function renderCatalogList(listId, items, type) {
 }
 
 async function addCatalogItem(type) {
-  const inputId = type === "departments" ? "newDepartmentInput" : "newRankInput";
-  const input = document.getElementById(inputId);
+  if (type === "departments") {
+    await addDepartmentItem();
+    return;
+  }
+
+  const input = document.getElementById("newRankInput");
   if (!input) return;
 
   const value = input.value.trim();
@@ -600,15 +616,11 @@ async function addCatalogItem(type) {
     return;
   }
 
-  const targetList = type === "departments" ? catalogDepartments : catalogRanks;
-  const exists = targetList.some((item) => item.toLowerCase() === value.toLowerCase());
+  const exists = catalogRanks.some((item) => item.toLowerCase() === value.toLowerCase());
   if (exists) {
     showToast(t("admin.catalog.duplicate"), "error");
     return;
   }
-
-  const nextDepartments = type === "departments" ? [...targetList, value] : [...catalogDepartments];
-  const nextRanks = type === "ranks" ? [...targetList, value] : [...catalogRanks];
 
   try {
     showPageLoader(true, t("admin.catalog.saving"));
@@ -617,12 +629,55 @@ async function addCatalogItem(type) {
       doc,
       setDoc,
       serverTimestamp,
-      { departments: nextDepartments, ranks: nextRanks },
+      { departments: catalogDepartments, ranks: [...catalogRanks, value] },
       auth.currentUser?.uid || ""
     );
     catalogDepartments = saved.departments;
     catalogRanks = saved.ranks;
     input.value = "";
+    renderCatalogLists();
+    showToast(t("admin.catalog.added"), "success");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message === "catalog.emptyNotAllowed" ? t("admin.catalog.cannotEmpty") : (error.message || t("admin.catalog.saveFailed")), "error");
+  } finally {
+    showPageLoader(false);
+  }
+}
+
+async function addDepartmentItem() {
+  const nameInput = document.getElementById("newDepartmentInput");
+  const codeInput = document.getElementById("newDepartmentCodeInput");
+  if (!nameInput || !codeInput) return;
+
+  const name = nameInput.value.trim();
+  const code = codeInput.value.trim().toUpperCase();
+  if (!name || !code) {
+    showToast(t("admin.catalog.enterDepartmentBoth"), "error");
+    return;
+  }
+
+  const nextEntry = { name, code };
+  const merged = normalizeDepartmentsList([...catalogDepartments, nextEntry]);
+  if (merged.length === catalogDepartments.length) {
+    showToast(t("admin.catalog.duplicate"), "error");
+    return;
+  }
+
+  try {
+    showPageLoader(true, t("admin.catalog.saving"));
+    const saved = await saveCatalog(
+      db,
+      doc,
+      setDoc,
+      serverTimestamp,
+      { departments: merged, ranks: catalogRanks },
+      auth.currentUser?.uid || ""
+    );
+    catalogDepartments = saved.departments;
+    catalogRanks = saved.ranks;
+    nameInput.value = "";
+    codeInput.value = "";
     renderCatalogLists();
     showToast(t("admin.catalog.added"), "success");
   } catch (error) {
@@ -639,7 +694,8 @@ async function removeCatalogItem(type, index) {
   if (!item) return;
 
   const confirmKey = type === "departments" ? "admin.catalog.confirmRemoveDepartment" : "admin.catalog.confirmRemoveRank";
-  if (!confirm(t(confirmKey, { name: item }))) return;
+  const displayName = type === "departments" ? `${item.name} (${item.code})` : item;
+  if (!confirm(t(confirmKey, { name: displayName }))) return;
 
   const nextDepartments = type === "departments"
     ? targetList.filter((_, i) => i !== index)

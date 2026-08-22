@@ -2449,10 +2449,25 @@ a.sidebar-password-expiry-link:hover {
   flex: 1;
 }
 
+.admin-catalog-add-dept {
+  flex-wrap: wrap;
+}
+
+.admin-dept-code-input {
+  max-width: 120px;
+  flex-shrink: 0;
+}
+
 .admin-catalog-add-btn {
   flex-shrink: 0;
   min-width: 88px;
   padding: 10px 16px;
+}
+
+#ideaKaizenId[readonly] {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink);
+  cursor: default;
 }
 
 .admin-catalog-list {

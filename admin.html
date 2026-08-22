@@ -147,8 +147,9 @@
         <div class="admin-catalog-grid">
           <div class="admin-catalog-panel">
             <h3 data-i18n="admin.catalog.departments">Danh sách bộ phận</h3>
-            <div class="admin-catalog-add">
-              <input type="text" id="newDepartmentInput" class="admin-search-input" data-i18n-placeholder="admin.catalog.addDepartmentPlaceholder" placeholder="Nhập tên bộ phận mới..." maxlength="64">
+            <div class="admin-catalog-add admin-catalog-add-dept">
+              <input type="text" id="newDepartmentInput" class="admin-search-input" data-i18n-placeholder="admin.catalog.addDepartmentPlaceholder" placeholder="Tên bộ phận..." maxlength="64">
+              <input type="text" id="newDepartmentCodeInput" class="admin-search-input admin-dept-code-input" data-i18n-placeholder="admin.catalog.addDepartmentCodePlaceholder" placeholder="Mã BP..." maxlength="16">
               <button type="button" id="addDepartmentBtn" class="primary-btn admin-catalog-add-btn" data-i18n="admin.catalog.add">Thêm</button>
             </div>
             <ul id="departmentList" class="admin-catalog-list">
@@ -172,6 +173,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./admin.js?v=20260822b"></script>
+  <script type="module" src="./admin.js?v=20260822c"></script>
 </body>
 </html>

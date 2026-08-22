@@ -4,6 +4,7 @@ import {
   PREVIEW_MODE,
   CAP_BAC_OPTIONS,
   DEPARTMENT_OPTIONS,
+  EMPLOYEE_ID_LENGTH,
   CLASSIFICATION_CODES,
   KAIZEN_STATUS,
   LIST_STATUS_FILTERS,
@@ -18,16 +19,18 @@ import {
   canSubmitKaizen,
   canApproveL1,
   canApproveL2,
-  canUseApprovalLists
+  canUseApprovalLists,
+  isIdeaEditable
 } from "./constants.js";
-import { fetchCatalog } from "./catalog-service.js";
+import { fetchCatalog, getDepartmentNames, getDepartmentCode, getDefaultCatalog } from "./catalog-service.js";
+import { generateKaizenId } from "./kaizen-id-service.js";
 import {
   calcTotalSavings,
   uploadKaizenImage,
   saveKaizenRecord,
   fetchKaizenList,
   fetchKaizenById,
-  approveKaizenL1,
+  managerReviewKaizen,
   approveKaizenL2,
   startKaizenProgress
 } from "./kaizen-service.js";
@@ -58,10 +61,7 @@ let kaizenListCache = [];
 let isSaving = false;
 let editingKaizenDocId = null;
 let selectedProgressKaizenId = null;
-let registerCatalog = {
-  departments: [...DEPARTMENT_OPTIONS],
-  ranks: [...CAP_BAC_OPTIONS]
-};
+let registerCatalog = getDefaultCatalog();
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -124,7 +124,7 @@ async function loadRegisterCatalog() {
   } catch (error) {
     console.warn("Không thể tải danh mục bộ phận/chức danh, dùng mặc định:", error);
     registerCatalog = {
-      departments: [...DEPARTMENT_OPTIONS],
+      departments: getDefaultCatalog().departments,
       ranks: [...CAP_BAC_OPTIONS]
     };
   }
@@ -134,7 +134,7 @@ async function enterPreviewMode() {
   const demoProfile = {
     uid: "preview-user",
     email: "preview@local.dev",
-    taiKhoan: "DEMO001",
+    taiKhoan: "DEMO",
     hoTen: "Người dùng xem trước",
     department: "GAHR",
     capBac: "Staff",
@@ -175,7 +175,7 @@ function populateRegisterSelects() {
   const currentCap = capSelect.value;
 
   deptSelect.innerHTML = `<option value="">${t("auth.placeholder.selectDepartment")}</option>` +
-    registerCatalog.departments.map((d) => `<option value="${escapeHtmlAttr(d)}">${escapeHtml(d)}</option>`).join("");
+    getDepartmentNames(registerCatalog).map((d) => `<option value="${escapeHtmlAttr(d)}">${escapeHtml(d)}</option>`).join("");
   capSelect.innerHTML = `<option value="">${t("auth.placeholder.selectCapBac")}</option>` +
     registerCatalog.ranks.map((c) => `<option value="${escapeHtmlAttr(c)}">${escapeHtml(c)}</option>`).join("");
 
@@ -211,7 +211,9 @@ function bindEvents() {
     resetFormForNew();
     setActiveTab("idea");
   });
-  document.getElementById("saveIdeaBtn")?.addEventListener("click", () => saveKaizen("idea"));
+  document.getElementById("saveDraftBtn")?.addEventListener("click", () => saveKaizen("idea", "draft"));
+  document.getElementById("submitIdeaBtn")?.addEventListener("click", () => saveKaizen("idea", "submit"));
+  document.getElementById("resubmitIdeaBtn")?.addEventListener("click", () => saveKaizen("idea", "submit"));
   document.getElementById("saveReportBtn")?.addEventListener("click", () => saveKaizen("report"));
   document.getElementById("progressBackBtn")?.addEventListener("click", () => {
     setActiveTab("list", listStatusFilter, listViewMode);
@@ -220,13 +222,10 @@ function bindEvents() {
   ["beforeWorkHour", "afterWorkHour", "beforeNearMiss", "afterNearMiss", "dailyHoursSaved", "monthlyDays", "hourlyCost"]
     .forEach((id) => document.getElementById(id)?.addEventListener("input", updateMetricsUI));
 
-  document.getElementById("ideaProposer")?.addEventListener("input", (e) => {
-    const other = document.getElementById("ideaProposer2");
-    if (other) other.value = e.target.value;
-  });
-  document.getElementById("ideaProposer2")?.addEventListener("input", (e) => {
-    const other = document.getElementById("ideaProposer");
-    if (other) other.value = e.target.value;
+  document.getElementById("ideaDate")?.addEventListener("change", () => autoFillKaizenId());
+  document.getElementById("ideaDept")?.addEventListener("change", () => autoFillKaizenId());
+  document.querySelectorAll("[data-review-decision]").forEach((button) => {
+    button.addEventListener("click", () => handleManagerReview(button.dataset.reviewDecision));
   });
 }
 
@@ -335,7 +334,7 @@ async function handleRegister(event) {
     await setDoc(doc(db, "users", createdAuthUser.uid), {
       uid: createdAuthUser.uid,
       email,
-      taiKhoan,
+      taiKhoan: taiKhoan.trim().toUpperCase(),
       hoTen,
       department,
       capBac,
@@ -370,7 +369,10 @@ function validateRegisterForm({ email, password, confirmPassword, taiKhoan, hoTe
   }
   if (password.length < 6) return t("auth.passwordMin6");
   if (password !== confirmPassword) return t("auth.passwordMismatch");
-  if (!registerCatalog.departments.includes(department)) return t("auth.fillRegisterInfo");
+  const normalizedTaiKhoan = taiKhoan.trim().toUpperCase();
+  if (normalizedTaiKhoan.length !== EMPLOYEE_ID_LENGTH) return t("auth.employeeIdLength");
+  if (!/^[A-Z0-9]{4}$/.test(normalizedTaiKhoan)) return t("auth.employeeIdFormat");
+  if (!getDepartmentNames(registerCatalog).includes(department)) return t("auth.fillRegisterInfo");
   if (!registerCatalog.ranks.includes(capBac)) return t("auth.fillRegisterInfo");
   return "";
 }
@@ -516,6 +518,7 @@ async function showAppScreen(profile, firebaseUser) {
   applyRoleBasedUI();
   setActiveTab(activeTab || "idea");
   await loadKaizenListSafe();
+  autoFillKaizenId();
 }
 
 function fillUserDisplay(profile, firebaseUser) {
@@ -541,10 +544,8 @@ function fillUserDisplay(profile, firebaseUser) {
   if (sidebarDept) sidebarDept.textContent = department;
 
   const proposer = document.getElementById("ideaProposer");
-  const proposer2 = document.getElementById("ideaProposer2");
   const dept = document.getElementById("ideaDept");
   if (proposer && !proposer.value) proposer.value = name;
-  if (proposer2 && !proposer2.value) proposer2.value = name;
   if (dept && !dept.value) dept.value = profile.department || "";
   const reportDept = document.getElementById("reportDept");
   if (reportDept && !reportDept.value) reportDept.value = profile.department || "";
@@ -563,6 +564,32 @@ function syncFormDefaults() {
   const reportDate = document.getElementById("reportDate");
   if (ideaDate && !ideaDate.value) ideaDate.value = today;
   if (reportDate && !reportDate.value) reportDate.value = today;
+  autoFillKaizenId();
+}
+
+function autoFillKaizenId() {
+  if (editingKaizenDocId || !currentUserProfile) return;
+
+  const deptName = document.getElementById("ideaDept")?.value || currentUserProfile.department || "";
+  const deptCode = getDepartmentCode(registerCatalog, deptName);
+  const dateValue = document.getElementById("ideaDate")?.value;
+  const year = dateValue ? new Date(dateValue).getFullYear() : new Date().getFullYear();
+
+  try {
+    const kaizenId = generateKaizenId({
+      taiKhoan: currentUserProfile.taiKhoan,
+      departmentCode: deptCode,
+      year,
+      uid: currentUserProfile.uid,
+      existingRecords: kaizenListCache
+    });
+    const ideaInput = document.getElementById("ideaKaizenId");
+    if (ideaInput) ideaInput.value = kaizenId;
+    const reportInput = document.getElementById("reportKaizenId");
+    if (reportInput && !editingKaizenDocId) reportInput.value = kaizenId;
+  } catch (error) {
+    console.warn("Không thể tạo mã Kaizen tự động:", error);
+  }
 }
 
 function setActiveTab(tab, statusFilter, viewMode) {
@@ -627,6 +654,12 @@ function setActiveTab(tab, statusFilter, viewMode) {
   }
   if (tab === "progress" && selectedProgressKaizenId) {
     renderProgressView(selectedProgressKaizenId);
+  }
+  if (tab === "idea" && editingKaizenDocId) {
+    const editing = kaizenListCache.find((item) => item.id === editingKaizenDocId);
+    applyIdeaFormState(editing || null);
+  } else if (tab === "idea" && !editingKaizenDocId) {
+    applyIdeaFormState(null);
   }
   applyRoleBasedUI();
 }
@@ -714,7 +747,7 @@ function syncIdeaToReportFields() {
   });
 }
 
-function collectFormPayload(mode) {
+function collectFormPayload(mode, intent = "draft") {
   const kaizenId = (document.getElementById(mode === "report" ? "reportKaizenId" : "ideaKaizenId")?.value || "").trim();
   const date = document.getElementById(mode === "report" ? "reportDate" : "ideaDate")?.value || "";
   const dept = document.getElementById(mode === "report" ? "reportDept" : "ideaDept")?.value || "";
@@ -725,13 +758,18 @@ function collectFormPayload(mode) {
   const monthlyDays = Number(document.getElementById("monthlyDays")?.value) || 0;
   const hourlyCost = Number(document.getElementById("hourlyCost")?.value) || 0;
 
+  let status = KAIZEN_STATUS.DRAFT;
+  if (mode === "report") {
+    status = KAIZEN_STATUS.COMPLETED;
+  } else if (intent === "submit") {
+    status = KAIZEN_STATUS.SUBMITTED;
+  }
+
   return {
     kaizenId,
     date,
     dept,
     proposer,
-    checked: document.getElementById("ideaChecked")?.value || "",
-    approved: document.getElementById("ideaApproved")?.value || "",
     improvedContent,
     classification: [...selectedClassification],
     problemDesc: document.getElementById("ideaProblemDesc")?.value || "",
@@ -756,8 +794,8 @@ function collectFormPayload(mode) {
     hourlyCost,
     totalSavings: calcTotalSavings(dailyHoursSaved, monthlyDays, hourlyCost),
     qualitativeEffect: document.getElementById("qualitativeEffect")?.value || "",
-    approvalPath: document.querySelector('input[name="approvalPath"]:checked')?.value || APPROVAL_PATH.MANAGER_ONLY,
-    status: mode === "report" ? KAIZEN_STATUS.COMPLETED : KAIZEN_STATUS.SUBMITTED,
+    approvalPath: APPROVAL_PATH.MANAGER_ONLY,
+    status,
     uid: currentFirebaseUser?.uid || currentUserProfile?.uid || "",
     email: currentFirebaseUser?.email || currentUserProfile?.email || "",
     taiKhoan: currentUserProfile?.taiKhoan || "",
@@ -766,7 +804,7 @@ function collectFormPayload(mode) {
   };
 }
 
-async function saveKaizen(mode) {
+async function saveKaizen(mode, intent = "draft") {
   if (isSaving) return;
   if (!currentUserProfile) {
     showToast(t("common.notLoggedIn"), "error");
@@ -778,7 +816,22 @@ async function saveKaizen(mode) {
     return;
   }
 
-  const payload = collectFormPayload(mode);
+  if (mode === "idea") {
+    const existing = editingKaizenDocId
+      ? kaizenListCache.find((item) => item.id === editingKaizenDocId)
+      : null;
+    if (existing && !isIdeaEditable(existing)) {
+      showToast(t("kaizen.formLocked"), "error");
+      return;
+    }
+    if (intent === "submit" && !confirm(t("kaizen.confirmSubmit"))) return;
+  }
+
+  const payload = collectFormPayload(mode, intent);
+  if (mode === "idea" && !editingKaizenDocId) {
+    autoFillKaizenId();
+    payload.kaizenId = (document.getElementById("ideaKaizenId")?.value || "").trim();
+  }
   if (!payload.kaizenId) {
     showToast(t("kaizen.requireId"), "error");
     return;
@@ -814,7 +867,10 @@ async function saveKaizen(mode) {
 
     const savedId = await saveKaizenRecord(payload, editingKaizenDocId);
     editingKaizenDocId = savedId;
-    showToast(t("kaizen.saved", { id: payload.kaizenId }), "success");
+    const toastKey = mode === "idea"
+      ? (intent === "submit" ? "kaizen.submitted" : "kaizen.draftSaved")
+      : "kaizen.saved";
+    showToast(t(toastKey, { id: payload.kaizenId }), "success");
     await loadKaizenListSafe();
     if (mode === "report") {
       if (selectedProgressKaizenId) {
@@ -823,8 +879,12 @@ async function saveKaizen(mode) {
       } else {
         setActiveTab("list");
       }
-    } else {
+    } else if (intent === "submit") {
       setActiveTab("list");
+    } else {
+      const updated = kaizenListCache.find((item) => item.id === savedId);
+      if (updated) applyIdeaFormState(updated);
+      setActiveTab("idea");
     }
   } catch (error) {
     console.error(error);
@@ -872,8 +932,10 @@ function renderDashboardStats() {
   let totalSavings = 0;
   dashboardRecords.forEach((item) => {
     const status = normalizeKaizenStatus(item.status);
-    if (status === KAIZEN_STATUS.L1_APPROVED) {
+    if ([KAIZEN_STATUS.DRAFT, KAIZEN_STATUS.SUBMITTED, KAIZEN_STATUS.REVISION_REQUESTED, KAIZEN_STATUS.L1_APPROVED].includes(status)) {
       counts.submitted += 1;
+    } else if (status === KAIZEN_STATUS.REJECTED || status === KAIZEN_STATUS.APPROVED) {
+      counts.approved += 1;
     } else if (counts[status] != null) {
       counts[status] += 1;
     }
@@ -962,7 +1024,7 @@ function resetFormForNew() {
   [
     "ideaKaizenId", "ideaImprovedContent", "ideaProblemDesc", "ideaImprovementPlan",
     "ideaImprovementActions", "ideaRiskIdentification", "ideaAfterDescription",
-    "ideaChecked", "ideaApproved", "reportKaizenId", "reportSopNo", "reportProductName",
+    "reportKaizenId", "reportSopNo", "reportProductName",
     "reportProcess", "reportTarget", "reportTargetDetail", "reportBeforeDescription",
     "reportAfterDescription", "reportMaterialsAndCost", "qualitativeEffect"
   ].forEach((id) => {
@@ -980,12 +1042,11 @@ function resetFormForNew() {
   document.getElementById("hourlyCost").value = 5;
   if (currentUserProfile) {
     document.getElementById("ideaProposer").value = currentUserProfile.hoTen || "";
-    document.getElementById("ideaProposer2").value = currentUserProfile.hoTen || "";
     document.getElementById("ideaDept").value = currentUserProfile.department || "";
     document.getElementById("reportDept").value = currentUserProfile.department || "";
   }
-  const managerPath = document.getElementById("approvalPathManager");
-  if (managerPath) managerPath.checked = true;
+  autoFillKaizenId();
+  applyIdeaFormState(null);
   updateMetricsUI();
 }
 
@@ -1046,13 +1107,50 @@ function escapeHtmlAttr(value) {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
+function applyIdeaFormState(record) {
+  const editable = isIdeaEditable(record);
+  const tabIdea = document.getElementById("tabIdea");
+  if (tabIdea) {
+    tabIdea.classList.toggle("kz-form-locked", !editable);
+    tabIdea.querySelectorAll("input, textarea, select, button.kz-class-btn").forEach((el) => {
+      if (el.closest(".kz-footer-actions")) return;
+      if (el.id === "ideaKaizenId") return;
+      if (el.type === "file" || el.classList.contains("kz-class-btn")) {
+        el.disabled = !editable;
+      } else if (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && el.type !== "date")) {
+        el.readOnly = !editable;
+      } else if (el.tagName === "INPUT") {
+        el.disabled = !editable;
+      }
+    });
+  }
+
+  const status = record ? normalizeKaizenStatus(record.status) : null;
+  const banner = document.getElementById("ideaRevisionBanner");
+  const commentEl = document.getElementById("ideaRevisionComment");
+  if (banner && commentEl) {
+    const showRevision = status === KAIZEN_STATUS.REVISION_REQUESTED && record?.l1ReviewComment;
+    banner.classList.toggle("hidden", !showRevision);
+    if (showRevision) commentEl.textContent = record.l1ReviewComment;
+  }
+
+  document.getElementById("saveDraftBtn")?.classList.toggle("hidden", !editable);
+  document.getElementById("submitIdeaBtn")?.classList.toggle("hidden", !editable || status === KAIZEN_STATUS.REVISION_REQUESTED);
+  document.getElementById("resubmitIdeaBtn")?.classList.toggle("hidden", status !== KAIZEN_STATUS.REVISION_REQUESTED);
+  document.getElementById("goReportBtn")?.classList.toggle("hidden",
+    status !== KAIZEN_STATUS.APPROVED && status !== KAIZEN_STATUS.IN_PROGRESS);
+}
+
 function applyRoleBasedUI() {
   const role = normalizeRole(currentUserProfile?.role);
-  const saveIdeaBtn = document.getElementById("saveIdeaBtn");
+  const saveDraftBtn = document.getElementById("saveDraftBtn");
+  const submitBtn = document.getElementById("submitIdeaBtn");
   const createNewBtn = document.getElementById("createNewBtn");
   const approvalNav = document.getElementById("navGroupApproval");
-  if (saveIdeaBtn) saveIdeaBtn.disabled = !canSubmitKaizen(role);
-  if (createNewBtn) createNewBtn.classList.toggle("hidden", !canSubmitKaizen(role));
+  const canSubmit = canSubmitKaizen(role);
+  if (saveDraftBtn) saveDraftBtn.disabled = !canSubmit;
+  if (submitBtn) submitBtn.disabled = !canSubmit;
+  if (createNewBtn) createNewBtn.classList.toggle("hidden", !canSubmit);
   if (approvalNav) approvalNav.classList.toggle("hidden", !canUseApprovalLists(role));
 }
 
@@ -1083,16 +1181,16 @@ async function renderProgressView(docId) {
     return;
   }
 
+  const status = normalizeKaizenStatus(record.status);
+
   if (meta) {
-    const pathLabel = t(`kaizen.approvalPath.${normalizeApprovalPath(record.approvalPath) === APPROVAL_PATH.MANAGER_ONLY ? "managerOnly" : "topManager"}`);
-    meta.textContent = `${record.kaizenId || record.id} · ${record.improvedContent || "-"} · ${pathLabel}`;
+    meta.textContent = `${record.kaizenId || record.id} · ${record.improvedContent || "-"} · ${t(`kaizen.status.${status}`)}`;
   }
 
   const steps = getWorkflowStepsForRecord(record);
   const currentStep = getWorkflowStepIndex(record.status, record.approvalPath);
   const role = normalizeRole(currentUserProfile?.role);
   const isOwner = record.uid === currentUserProfile?.uid;
-  const status = normalizeKaizenStatus(record.status);
 
   timeline.innerHTML = steps.map((step, index) => {
     const stepNo = index + 1;
@@ -1113,13 +1211,37 @@ async function renderProgressView(docId) {
     `;
   }).join("");
 
+  const reviewPanel = document.getElementById("managerReviewPanel");
+  const showReview = status === KAIZEN_STATUS.SUBMITTED &&
+    canApproveL1(role, currentUserProfile, record);
+  if (reviewPanel) {
+    reviewPanel.classList.toggle("hidden", !showReview);
+    if (showReview) {
+      const commentBox = document.getElementById("managerReviewComment");
+      if (commentBox) commentBox.value = "";
+    }
+  }
+
   applyI18n(timeline);
   bindProgressActions(record);
 }
 
 function renderProgressStepDetail(stepKey, record) {
-  if (stepKey === "l1_approval" && record.l1ApprovedByName) {
-    return `<p class="kz-progress-detail">${escapeHtml(t("progress.approvedBy", { name: record.l1ApprovedByName }))}</p>`;
+  if (stepKey === "l1_approval") {
+    const name = record.l1ReviewedByName || record.l1ApprovedByName;
+    const comment = record.l1ReviewComment;
+    if (!name && !comment) return "";
+    const nameLine = name
+      ? escapeHtml(t(record.l1ReviewDecision === "reject"
+        ? "progress.rejectedBy"
+        : record.l1ReviewDecision === "revision"
+          ? "progress.revisionBy"
+          : "progress.approvedBy", { name }))
+      : "";
+    const commentLine = comment
+      ? `<p class="kz-progress-comment">${escapeHtml(comment)}</p>`
+      : "";
+    return `<div class="kz-progress-detail">${nameLine ? `<p>${nameLine}</p>` : ""}${commentLine}</div>`;
   }
   if (stepKey === "l2_approval" && record.l2ApprovedByName) {
     return `<p class="kz-progress-detail">${escapeHtml(t("progress.approvedBy", { name: record.l2ApprovedByName }))}</p>`;
@@ -1134,13 +1256,20 @@ function renderProgressStepAction(stepKey, record, ctx) {
   const { role, isOwner, status, state } = ctx;
 
   if (stepKey === "proposal") {
-    return `<button type="button" class="kz-btn-purple kz-progress-action" data-action="view-idea">${t("progress.viewIdea")}</button>`;
+    const label = status === KAIZEN_STATUS.REVISION_REQUESTED && isOwner
+      ? t("progress.editIdea")
+      : t("progress.viewIdea");
+    return `<button type="button" class="kz-btn-purple kz-progress-action" data-action="view-idea">${label}</button>`;
+  }
+
+  if (stepKey === "l1_approval" && status === KAIZEN_STATUS.REJECTED) {
+    return `<span class="kz-progress-rejected-badge">${t("kaizen.status.rejected")}</span>`;
   }
 
   if (stepKey === "l1_approval" &&
       status === KAIZEN_STATUS.SUBMITTED &&
       canApproveL1(role, currentUserProfile, record)) {
-    return `<button type="button" class="primary-btn kz-progress-action" data-action="approve-l1">${t("progress.approveL1")}</button>`;
+    return `<span class="kz-progress-waiting">${t("progress.managerReviewHint")}</span>`;
   }
 
   if (stepKey === "l2_approval" &&
@@ -1187,10 +1316,6 @@ function bindProgressActions(record) {
           await handleOpenProgressReport(record);
           return;
         }
-        if (action === "approve-l1") {
-          await handleApproveL1(record);
-          return;
-        }
         if (action === "approve-l2") {
           await handleApproveL2(record);
         }
@@ -1202,18 +1327,40 @@ function bindProgressActions(record) {
   });
 }
 
-async function handleApproveL1(record) {
-  if (!canApproveL1(currentUserProfile?.role, currentUserProfile, record)) {
+async function handleManagerReview(decision) {
+  const docId = selectedProgressKaizenId;
+  if (!docId) return;
+
+  const record = kaizenListCache.find((item) => item.id === docId);
+  if (!record || !canApproveL1(currentUserProfile?.role, currentUserProfile, record)) {
     showToast(t("progress.approveDeptDenied"), "error");
     return;
   }
-  if (!confirm(t("progress.confirmApproveL1", { id: record.kaizenId || record.id }))) return;
+
+  const comment = document.getElementById("managerReviewComment")?.value?.trim() || "";
+  if ((decision === "revision" || decision === "reject") && !comment) {
+    showToast(t("progress.commentRequired"), "error");
+    return;
+  }
+
+  const confirmKeys = {
+    approve: "progress.confirmApproveIdea",
+    reject: "progress.confirmRejectIdea",
+    revision: "progress.confirmRevision"
+  };
+  const successKeys = {
+    approve: "progress.approveIdeaSuccess",
+    reject: "progress.rejectIdeaSuccess",
+    revision: "progress.revisionSuccess"
+  };
+  if (!confirm(t(confirmKeys[decision], { id: record.kaizenId || record.id }))) return;
+
   showPageLoader(true, t("common.loading"));
   try {
-    await approveKaizenL1(record.id, currentUserProfile, record);
-    showToast(t("progress.approvedL1Success"), "success");
+    await managerReviewKaizen(docId, decision, comment, currentUserProfile);
+    showToast(t(successKeys[decision]), "success");
     await loadKaizenListSafe();
-    renderProgressView(record.id);
+    renderProgressView(docId);
   } finally {
     showPageLoader(false);
   }
@@ -1266,9 +1413,6 @@ function loadKaizenIntoForms(record, mode = "idea") {
   setValue("ideaDate", record.date);
   setValue("ideaDept", record.dept || record.department);
   setValue("ideaProposer", record.proposer);
-  setValue("ideaProposer2", record.proposer);
-  setValue("ideaApproved", record.approved);
-  setValue("ideaChecked", record.checked);
   setValue("ideaImprovedContent", record.improvedContent);
   setValue("ideaProblemDesc", record.problemDesc);
   setValue("ideaImprovementPlan", record.improvementPlan);
@@ -1296,13 +1440,8 @@ function loadKaizenIntoForms(record, mode = "idea") {
   setValue("hourlyCost", record.hourlyCost ?? 5);
   setValue("qualitativeEffect", record.qualitativeEffect);
 
-  const path = normalizeApprovalPath(record.approvalPath);
-  const managerRadio = document.getElementById("approvalPathManager");
-  const topRadio = document.getElementById("approvalPathTopManager");
-  if (managerRadio) managerRadio.checked = path === APPROVAL_PATH.MANAGER_ONLY;
-  if (topRadio) topRadio.checked = path === APPROVAL_PATH.TOP_MANAGER;
-
   updateMetricsUI();
+  applyIdeaFormState(record);
 
   if (mode === "report") {
     syncIdeaToReportFields();

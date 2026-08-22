@@ -4,6 +4,9 @@
  */
 export const PREVIEW_MODE = false;
 
+/** Mã nhân viên cố định 4 ký tự. */
+export const EMPLOYEE_ID_LENGTH = 4;
+
 /** Cấp bậc dùng cho phân quyền phê duyệt phiếu ý tưởng (sẽ triển khai sau). */
 export const CAP_BAC_OPTIONS = [
   "Operator",
@@ -47,7 +50,10 @@ export const CLASSIFICATION_CODES = [
 export const USER_ROLES = ["user", "manager", "top_manager", "admin"];
 
 export const KAIZEN_STATUS = {
+  DRAFT: "draft",
   SUBMITTED: "submitted",
+  REVISION_REQUESTED: "revision_requested",
+  REJECTED: "rejected",
   L1_APPROVED: "l1_approved",
   APPROVED: "approved",
   IN_PROGRESS: "in_progress",
@@ -74,8 +80,8 @@ export const LIST_VIEW_MODES = ["mine", "pending_approval", "approved_by_me"];
 
 /** Các bước hiển thị trên trang tiến độ phiếu. */
 export const WORKFLOW_STEPS = [
-  { key: "proposal", statuses: ["submitted", "l1_approved", "approved", "in_progress", "completed"] },
-  { key: "l1_approval", statuses: ["l1_approved", "approved", "in_progress", "completed"] },
+  { key: "proposal", statuses: ["draft", "revision_requested", "submitted", "rejected", "l1_approved", "approved", "in_progress", "completed"] },
+  { key: "l1_approval", statuses: ["approved", "in_progress", "completed", "rejected"] },
   { key: "l2_approval", statuses: ["approved", "in_progress", "completed"] },
   { key: "in_progress", statuses: ["in_progress", "completed"] },
   { key: "completed", statuses: ["completed"] }
@@ -147,7 +153,9 @@ export function isPendingApprovalFor(profile, record) {
 export function isApprovedByMe(profile, record) {
   if (!profile || !record) return false;
   const uid = profile.uid;
-  return record.l1ApprovedBy === uid || record.l2ApprovedBy === uid;
+  return record.l1ReviewedBy === uid ||
+    record.l1ApprovedBy === uid ||
+    record.l2ApprovedBy === uid;
 }
 
 export function canUseApprovalLists(role) {
@@ -187,9 +195,18 @@ export function filterKaizenForDashboard(records, profile) {
   return records.filter((record) => isOwnKaizen(record, profile));
 }
 
+export function isIdeaEditable(record) {
+  if (!record) return true;
+  const status = normalizeKaizenStatus(record.status);
+  return status === KAIZEN_STATUS.DRAFT || status === KAIZEN_STATUS.REVISION_REQUESTED;
+}
+
 export function normalizeKaizenStatus(status) {
   if (status === "idea_new") return KAIZEN_STATUS.SUBMITTED;
   if (status === "report_done") return KAIZEN_STATUS.COMPLETED;
+  if (status === KAIZEN_STATUS.DRAFT) return KAIZEN_STATUS.DRAFT;
+  if (status === KAIZEN_STATUS.REVISION_REQUESTED) return KAIZEN_STATUS.REVISION_REQUESTED;
+  if (status === KAIZEN_STATUS.REJECTED) return KAIZEN_STATUS.REJECTED;
   if (status === KAIZEN_STATUS.L1_APPROVED) return KAIZEN_STATUS.L1_APPROVED;
   if (LIST_STATUS_FILTERS.includes(status)) return status;
   return KAIZEN_STATUS.SUBMITTED;
@@ -199,8 +216,15 @@ export function normalizeKaizenStatus(status) {
 export function statusMatchesListFilter(status, filter) {
   const normalized = normalizeKaizenStatus(status);
   if (!filter || filter === "all") return true;
-  if (filter === "submitted") return normalized === KAIZEN_STATUS.SUBMITTED || normalized === KAIZEN_STATUS.L1_APPROVED;
-  if (filter === "approved") return normalized === KAIZEN_STATUS.APPROVED;
+  if (filter === "submitted") {
+    return normalized === KAIZEN_STATUS.DRAFT ||
+      normalized === KAIZEN_STATUS.SUBMITTED ||
+      normalized === KAIZEN_STATUS.REVISION_REQUESTED ||
+      normalized === KAIZEN_STATUS.L1_APPROVED;
+  }
+  if (filter === "approved") {
+    return normalized === KAIZEN_STATUS.APPROVED || normalized === KAIZEN_STATUS.REJECTED;
+  }
   if (filter === "in_progress") return normalized === KAIZEN_STATUS.IN_PROGRESS;
   if (filter === "completed") return normalized === KAIZEN_STATUS.COMPLETED;
   return normalized === filter;
@@ -211,12 +235,15 @@ export function getWorkflowStepIndex(status, approvalPath) {
   const s = normalizeKaizenStatus(status);
 
   if (path === APPROVAL_PATH.MANAGER_ONLY) {
+    if (s === KAIZEN_STATUS.DRAFT || s === KAIZEN_STATUS.REVISION_REQUESTED) return 1;
     if (s === KAIZEN_STATUS.SUBMITTED) return 2;
+    if (s === KAIZEN_STATUS.REJECTED) return 2;
     if (s === KAIZEN_STATUS.APPROVED || s === KAIZEN_STATUS.IN_PROGRESS) return 3;
     if (s === KAIZEN_STATUS.COMPLETED) return 4;
-    return 2;
+    return 1;
   }
 
+  if (s === KAIZEN_STATUS.DRAFT || s === KAIZEN_STATUS.REVISION_REQUESTED) return 1;
   if (s === KAIZEN_STATUS.SUBMITTED) return 2;
   if (s === KAIZEN_STATUS.L1_APPROVED) return 3;
   if (s === KAIZEN_STATUS.APPROVED || s === KAIZEN_STATUS.IN_PROGRESS) return 4;

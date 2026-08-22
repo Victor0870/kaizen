@@ -73,7 +73,7 @@
             </div>
             <div class="form-group">
               <label for="registerTaiKhoanInput" data-i18n="auth.internalAccount">Mã nhân viên</label>
-              <input type="text" id="registerTaiKhoanInput" data-i18n-placeholder="auth.placeholder.account" placeholder="Ví dụ: 003GAHR" required>
+              <input type="text" id="registerTaiKhoanInput" data-i18n-placeholder="auth.placeholder.account" placeholder="Ví dụ: 003G" maxlength="4" minlength="4" pattern="[A-Za-z0-9]{4}" required>
             </div>
             <div class="form-group">
               <label for="registerHoTenInput" data-i18n="common.fullName">Họ tên</label>
@@ -238,31 +238,16 @@
                   <p data-i18n="kaizen.idea.subtitle">Ghi nhận thông tin thực trạng, nguyên nhân & giải pháp dự kiến</p>
                 </div>
                 <div class="kz-meta-grid">
-                  <label><span data-i18n="kaizen.field.kaizenId">Mã Kaizen</span><input type="text" id="ideaKaizenId"></label>
+                  <label><span data-i18n="kaizen.field.kaizenId">Mã Kaizen</span><input type="text" id="ideaKaizenId" readonly data-i18n-placeholder="kaizen.placeholder.autoKaizenId"></label>
                   <label><span data-i18n="kaizen.field.date">Ngày</span><input type="date" id="ideaDate"></label>
                   <label><span data-i18n="kaizen.field.dept">Bộ phận</span><input type="text" id="ideaDept"></label>
                   <label><span data-i18n="kaizen.field.proposer">Người đề xuất</span><input type="text" id="ideaProposer"></label>
                 </div>
               </div>
 
-              <div class="kz-approval-row">
-                <label><span data-i18n="kaizen.field.approved">Người duyệt</span><input type="text" id="ideaApproved"></label>
-                <label><span data-i18n="kaizen.field.checked">Kiểm tra</span><input type="text" id="ideaChecked"></label>
-                <label><span data-i18n="kaizen.field.proposer">Đề xuất</span><input type="text" id="ideaProposer2"></label>
-              </div>
-
-              <div class="kz-approval-path">
-                <span class="kz-label" data-i18n="kaizen.field.approvalPath">Luồng phê duyệt</span>
-                <div class="kz-approval-path-options">
-                  <label class="kz-approval-path-option">
-                    <input type="radio" name="approvalPath" id="approvalPathManager" value="manager_only" checked>
-                    <span data-i18n="kaizen.approvalPath.managerOnly">Phê duyệt bởi Manager bộ phận</span>
-                  </label>
-                  <label class="kz-approval-path-option">
-                    <input type="radio" name="approvalPath" id="approvalPathTopManager" value="top_manager">
-                    <span data-i18n="kaizen.approvalPath.topManager">Phê duyệt bởi Manager + Top Manager</span>
-                  </label>
-                </div>
+              <div id="ideaRevisionBanner" class="kz-revision-banner hidden">
+                <strong data-i18n="kaizen.revision.title">Yêu cầu sửa từ Manager</strong>
+                <p id="ideaRevisionComment">-</p>
               </div>
 
               <div class="kz-content-row">
@@ -304,8 +289,10 @@
               </div>
 
               <div class="kz-footer-actions">
-                <button type="button" id="saveIdeaBtn" class="primary-btn" data-i18n="kaizen.saveIdea">Lưu phiếu ý tưởng</button>
-                <button type="button" id="goReportBtn" class="kz-btn-purple" data-i18n="kaizen.goReport">Chuyển sang báo cáo Kaizen</button>
+                <button type="button" id="saveDraftBtn" class="ghost-btn" data-i18n="kaizen.saveDraft">Lưu</button>
+                <button type="button" id="submitIdeaBtn" class="primary-btn" data-i18n="kaizen.submitIdea">Gửi phê duyệt</button>
+                <button type="button" id="resubmitIdeaBtn" class="primary-btn hidden" data-i18n="kaizen.resubmitIdea">Gửi phê duyệt lại</button>
+                <button type="button" id="goReportBtn" class="kz-btn-purple hidden" data-i18n="kaizen.goReport">Chuyển sang báo cáo Kaizen</button>
               </div>
             </div>
           </div>
@@ -395,6 +382,16 @@
               </div>
             </div>
             <div id="progressTimeline" class="kz-progress-timeline"></div>
+            <div id="managerReviewPanel" class="kz-manager-review hidden">
+              <h3 data-i18n="progress.managerReviewTitle">Phê duyệt phiếu ý tưởng</h3>
+              <label class="kz-label" for="managerReviewComment" data-i18n="progress.managerComment">Ý kiến người phê duyệt</label>
+              <textarea id="managerReviewComment" rows="3" data-i18n-placeholder="progress.managerCommentPlaceholder"></textarea>
+              <div class="kz-manager-review-actions">
+                <button type="button" class="ghost-btn" data-review-decision="revision" data-i18n="progress.requestRevision">Yêu cầu sửa lại</button>
+                <button type="button" class="btn-action reject" data-review-decision="reject" data-i18n="progress.rejectIdea">Không phê duyệt</button>
+                <button type="button" class="primary-btn" data-review-decision="approve" data-i18n="progress.approveIdea">Phê duyệt</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -435,6 +432,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260822k"></script>
+  <script type="module" src="./script.js?v=20260822m"></script>
 </body>
 </html>

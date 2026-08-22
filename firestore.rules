@@ -57,7 +57,8 @@ service cloud.firestore {
     function validKaizenStatus(status) {
       return status is string &&
              status.lower() in [
-               "submitted", "l1_approved", "approved", "in_progress", "completed"
+               "draft", "submitted", "revision_requested", "rejected",
+               "l1_approved", "approved", "in_progress", "completed"
              ];
     }
 
@@ -69,25 +70,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/settings/catalog).data;
     }
 
-    function defaultDepartments() {
-      return [
-        "GAHR", "PROD", "QA", "QC", "WH", "ENG",
-        "PUR", "FIN", "IT", "SALES", "OTHER"
-      ];
-    }
-
-    function defaultRanks() {
-      return [
-        "Operator", "Junior", "Staff", "Supervisor",
-        "AM", "MG", "SMG", "DGM", "GM", "DGD", "GD"
-      ];
+    function defaultDepartmentsByName() {
+      return {
+        "GAHR": "GAHR", "PROD": "PROD", "QA": "QA", "QC": "QC", "WH": "WH",
+        "ENG": "ENG", "PUR": "PUR", "FIN": "FIN", "IT": "IT",
+        "SALES": "SALES", "OTHER": "OTHER"
+      };
     }
 
     function validDepartment(department) {
       return department is string &&
              (
-               (catalogExists() && department in catalogData().departments) ||
-               (!catalogExists() && department in defaultDepartments())
+               (catalogExists() && department in catalogData().departmentsByName) ||
+               (!catalogExists() && department in defaultDepartmentsByName())
              );
     }
 
@@ -99,12 +94,32 @@ service cloud.firestore {
              );
     }
 
-    function validCatalogLists(departments, ranks) {
+    function defaultRanks() {
+      return [
+        "Operator", "Junior", "Staff", "Supervisor",
+        "AM", "MG", "SMG", "DGM", "GM", "DGD", "GD"
+      ];
+    }
+
+    function validDepartmentEntry(entry) {
+      return entry is map &&
+             entry.name is string &&
+             entry.name.size() > 0 &&
+             entry.code is string &&
+             entry.code.size() > 0 &&
+             entry.keys().hasOnly(["name", "code"]);
+    }
+
+    function validDepartmentsList(departments) {
       return departments is list &&
-             ranks is list &&
              departments.size() > 0 &&
+             departments.size() <= 100;
+    }
+
+    function validCatalogLists(departments, ranks) {
+      return validDepartmentsList(departments) &&
+             ranks is list &&
              ranks.size() > 0 &&
-             departments.size() <= 100 &&
              ranks.size() <= 100;
     }
 
@@ -160,17 +175,46 @@ service cloud.firestore {
              request.resource.data.kaizenId == resource.data.kaizenId;
     }
 
-    function kaizenOwnerEditSubmittedAllowed() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
+    function kaizenOwnerDraftSaveAllowed() {
+      let prev = resource.data.status.lower();
+      let next = request.resource.data.status.lower();
 
       return isActiveUser() &&
              resource.data.uid == request.auth.uid &&
-             resource.data.status.lower() == "submitted" &&
-             request.resource.data.status.lower() == "submitted" &&
              request.resource.data.uid == resource.data.uid &&
              request.resource.data.kaizenId == resource.data.kaizenId &&
-             !changed.hasAny(["status", "l1ApprovedBy", "l1ApprovedByName", "l1ApprovedAt",
-                              "l2ApprovedBy", "l2ApprovedByName", "l2ApprovedAt"]);
+             validKaizenStatus(next) &&
+             (
+               (prev == "draft" && next == "draft") ||
+               (prev == "revision_requested" && next == "draft")
+             ) &&
+             !request.resource.data.diff(resource.data).affectedKeys()
+               .hasAny(["l1ReviewComment", "l1ReviewDecision", "l1ReviewedBy",
+                        "l1ReviewedByName", "l1ReviewedAt", "l1ApprovedBy",
+                        "l1ApprovedByName", "l1ApprovedAt"]);
+    }
+
+    function kaizenOwnerSubmitAllowed() {
+      let prev = resource.data.status.lower();
+      let next = request.resource.data.status.lower();
+
+      return isActiveUser() &&
+             resource.data.uid == request.auth.uid &&
+             request.resource.data.uid == resource.data.uid &&
+             request.resource.data.kaizenId == resource.data.kaizenId &&
+             next == "submitted" &&
+             (prev == "draft" || prev == "revision_requested");
+    }
+
+    function kaizenManagerReviewAllowed() {
+      let next = request.resource.data.status.lower();
+
+      return isManager() &&
+             managerDeptMatches(resource.data) &&
+             resource.data.status.lower() == "submitted" &&
+             request.resource.data.l1ReviewedBy == request.auth.uid &&
+             request.resource.data.l1ReviewComment is string &&
+             next in ["approved", "rejected", "revision_requested"];
     }
 
     function recordDept(data) {
@@ -227,6 +271,7 @@ service cloud.firestore {
                     request.resource.data.status in ["pending", "active"] &&
                     request.resource.data.email == request.auth.token.email &&
                     request.resource.data.taiKhoan is string &&
+                    request.resource.data.taiKhoan.size() == 4 &&
                     request.resource.data.hoTen is string &&
                     request.resource.data.department is string &&
                     validDepartment(request.resource.data.department) &&
@@ -246,7 +291,8 @@ service cloud.firestore {
                             validCatalogLists(
                               request.resource.data.departments,
                               request.resource.data.ranks
-                            );
+                            ) &&
+                            request.resource.data.departmentsByName is map;
 
       allow delete: if false;
     }
@@ -267,13 +313,15 @@ service cloud.firestore {
                     request.resource.data.uid == request.auth.uid &&
                     request.resource.data.email == request.auth.token.email &&
                     request.resource.data.kaizenId is string &&
-                    request.resource.data.status == "submitted" &&
+                    request.resource.data.status in ["draft", "submitted"] &&
                     validApprovalPath(request.resource.data.approvalPath);
 
       allow update: if isAdmin() ||
                     kaizenOwnerStartProgressAllowed() ||
                     kaizenOwnerCompleteAllowed() ||
-                    kaizenOwnerEditSubmittedAllowed() ||
+                    kaizenOwnerDraftSaveAllowed() ||
+                    kaizenOwnerSubmitAllowed() ||
+                    kaizenManagerReviewAllowed() ||
                     kaizenManagerL1Allowed() ||
                     kaizenTopManagerL2Allowed();
 

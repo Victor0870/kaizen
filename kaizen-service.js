@@ -153,6 +153,38 @@ export async function approveKaizenL1(docId, approver, record) {
   return updateKaizenStatus(docId, patch);
 }
 
+export async function managerReviewKaizen(docId, decision, comment, approver) {
+  const patch = {
+    l1ReviewDecision: decision,
+    l1ReviewComment: String(comment || "").trim(),
+    l1ReviewedBy: approver.uid || "",
+    l1ReviewedByName: approver.hoTen || approver.email || ""
+  };
+
+  if (decision === "approve") {
+    patch.status = KAIZEN_STATUS.APPROVED;
+    patch.l1ApprovedBy = approver.uid || "";
+    patch.l1ApprovedByName = approver.hoTen || approver.email || "";
+  } else if (decision === "reject") {
+    patch.status = KAIZEN_STATUS.REJECTED;
+  } else if (decision === "revision") {
+    patch.status = KAIZEN_STATUS.REVISION_REQUESTED;
+  } else {
+    throw new Error("kaizen.invalidReviewDecision");
+  }
+
+  if (PREVIEW_MODE) {
+    patch.l1ReviewedAt = new Date().toISOString();
+    if (decision === "approve") patch.l1ApprovedAt = patch.l1ReviewedAt;
+  } else {
+    const { serverTimestamp } = await import("./firebase-config.js");
+    patch.l1ReviewedAt = serverTimestamp();
+    if (decision === "approve") patch.l1ApprovedAt = serverTimestamp();
+  }
+
+  return updateKaizenStatus(docId, patch);
+}
+
 export async function approveKaizenL2(docId, approver) {
   const patch = {
     status: KAIZEN_STATUS.APPROVED,
