@@ -1157,6 +1157,15 @@ textarea {
   width: 100%;
 }
 
+@media (min-width: 768px) {
+  .app-page .kz-body-layout .admin-sidebar {
+    height: auto;
+    min-height: calc(100vh - 58px);
+    max-height: calc(100vh - 58px);
+    top: 0;
+  }
+}
+
 .app-page .admin-main.report-main {
   max-width: 1320px;
 }
