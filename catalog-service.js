@@ -99,32 +99,46 @@ export async function ensureCatalogDefaults(db, docFn, getDocFn, setDocFn, serve
       !Array.isArray(raw.departments) ||
       !raw.departments.length ||
       !Array.isArray(raw.ranks) ||
-      !raw.ranks.length;
+      !raw.ranks.length ||
+      // Legacy: departments lưu dạng chuỗi thay vì { name, code }
+      (Array.isArray(raw.departments) &&
+        raw.departments.some((item) => typeof item === "string" || (item && !item.code)));
 
-    if (!needsRepair) {
-      const needsByName = !raw.departmentsByName || Object.keys(raw.departmentsByName).length === 0;
-      if (needsByName) {
-        await setDocFn(ref, {
-          departments: parsed.departments,
-          departmentsByName: buildDepartmentsByName(parsed.departments),
-          ranks: parsed.ranks,
-          updatedAt: serverTimestampFn(),
-          seededBy: "departmentsByName-backfill"
-        }, { merge: true });
-      }
+    const needsByName = !raw.departmentsByName || Object.keys(raw.departmentsByName).length === 0;
+
+    if (!needsRepair && !needsByName) {
       return { ...parsed, seeded: false };
+    }
+
+    try {
+      await setDocFn(ref, {
+        departments: parsed.departments,
+        departmentsByName: buildDepartmentsByName(parsed.departments),
+        ranks: parsed.ranks,
+        updatedAt: serverTimestampFn(),
+        seededBy: needsRepair ? "catalog-repair" : "departmentsByName-backfill"
+      }, { merge: true });
+      return { ...parsed, seeded: needsRepair };
+    } catch (error) {
+      console.warn("Không thể ghi sửa danh mục, dùng dữ liệu đã đọc:", error);
+      return { ...parsed, seeded: false, writeFailed: true };
     }
   }
 
   const defaults = getDefaultCatalog();
-  await setDocFn(ref, {
-    departments: defaults.departments,
-    departmentsByName: buildDepartmentsByName(defaults.departments),
-    ranks: defaults.ranks,
-    updatedAt: serverTimestampFn(),
-    seededBy: "system"
-  });
-  return { ...defaults, seeded: true };
+  try {
+    await setDocFn(ref, {
+      departments: defaults.departments,
+      departmentsByName: buildDepartmentsByName(defaults.departments),
+      ranks: defaults.ranks,
+      updatedAt: serverTimestampFn(),
+      seededBy: "system"
+    });
+    return { ...defaults, seeded: true };
+  } catch (error) {
+    console.warn("Không thể khởi tạo danh mục mặc định:", error);
+    return { ...defaults, seeded: false, writeFailed: true };
+  }
 }
 
 export async function saveCatalog(db, docFn, setDocFn, serverTimestampFn, { departments, ranks }, updatedBy = "") {

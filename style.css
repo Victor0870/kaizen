@@ -2453,9 +2453,13 @@ a.sidebar-password-expiry-link:hover {
   flex-wrap: wrap;
 }
 
+.admin-catalog-add-dept .admin-search-input {
+  min-width: 140px;
+}
+
 .admin-dept-code-input {
-  max-width: 120px;
-  flex-shrink: 0;
+  max-width: 140px;
+  flex: 1 1 120px;
 }
 
 .admin-catalog-add-btn {

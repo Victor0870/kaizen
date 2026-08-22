@@ -81,7 +81,12 @@ service cloud.firestore {
     function validDepartment(department) {
       return department is string &&
              (
-               (catalogExists() && department in catalogData().departmentsByName) ||
+               (catalogExists() &&
+                 catalogData().departmentsByName is map &&
+                 department in catalogData().departmentsByName) ||
+               (catalogExists() &&
+                 !(catalogData().departmentsByName is map) &&
+                 department in defaultDepartmentsByName()) ||
                (!catalogExists() && department in defaultDepartmentsByName())
              );
     }

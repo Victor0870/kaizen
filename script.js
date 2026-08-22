@@ -1181,11 +1181,13 @@ function applyRoleBasedUI() {
   const submitBtn = document.getElementById("submitIdeaBtn");
   const createNewBtn = document.getElementById("createNewBtn");
   const approvalNav = document.getElementById("navGroupApproval");
+  const adminNavLinks = document.querySelectorAll('a[href="./admin.html"]');
   const canSubmit = canSubmitKaizen(role);
   if (saveDraftBtn) saveDraftBtn.disabled = !canSubmit;
   if (submitBtn) submitBtn.disabled = !canSubmit;
   if (createNewBtn) createNewBtn.classList.toggle("hidden", !canSubmit);
   if (approvalNav) approvalNav.classList.toggle("hidden", !canUseApprovalLists(role));
+  adminNavLinks.forEach((link) => link.classList.toggle("hidden", role !== "admin"));
 }
 
 function openProgressView(docId) {

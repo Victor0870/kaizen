@@ -19,7 +19,8 @@ import { bindPasswordExpiry } from "./password-expiry.js";
 import {
   ensureCatalogDefaults,
   saveCatalog,
-  normalizeDepartmentsList
+  normalizeDepartmentsList,
+  getDefaultCatalog
 } from "./catalog-service.js";
 import { USER_ROLES, normalizeRole } from "./constants.js";
 
@@ -102,15 +103,30 @@ function bindEvents() {
 }
 
 function showAdminSection(sectionId) {
-  activeAdminSection = sectionId;
+  activeAdminSection = sectionId || "usersSection";
   document.querySelectorAll(".admin-panel-section").forEach((section) => {
-    section.classList.toggle("hidden", section.id !== sectionId);
+    section.classList.toggle("hidden", section.id !== activeAdminSection);
   });
   document.querySelectorAll("[data-admin-section]").forEach((link) => {
-    link.classList.toggle("active", link.dataset.adminSection === sectionId);
+    link.classList.toggle("active", link.dataset.adminSection === activeAdminSection);
   });
-  if (sectionId === "catalogSection") {
-    renderCatalogLists();
+
+  if (activeAdminSection === "catalogSection") {
+    if (!catalogDepartments.length || !catalogRanks.length) {
+      void loadCatalog(false);
+    } else {
+      renderCatalogLists();
+    }
+    document.getElementById("catalogSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  try {
+    const hash = activeAdminSection === "catalogSection" ? "#catalogSection" : "#usersSection";
+    if (location.hash !== hash) {
+      history.replaceState(null, "", hash);
+    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -157,7 +173,12 @@ function observeAuth() {
       }
 
       updateAdminSidebar(user, profile);
-      await Promise.all([loadUsers(false), loadCatalog(false)]);
+      await loadUsers(false);
+      try {
+        await loadCatalog(false);
+      } catch (catalogError) {
+        console.warn(catalogError);
+      }
       showAdminSection(location.hash === "#catalogSection" ? "catalogSection" : "usersSection");
     } catch (error) {
       console.error(error);
@@ -557,14 +578,27 @@ async function loadCatalog(showLoader = true) {
     const result = await ensureCatalogDefaults(db, doc, getDoc, setDoc, serverTimestamp);
     catalogDepartments = [...result.departments];
     catalogRanks = [...result.ranks];
+    if (!catalogDepartments.length || !catalogRanks.length) {
+      const defaults = getDefaultCatalog();
+      catalogDepartments = [...defaults.departments];
+      catalogRanks = [...defaults.ranks];
+    }
     if (result.seeded) {
       showToast(t("admin.catalog.seededDefaults"), "info");
+    } else if (result.writeFailed) {
+      showToast(t("admin.catalog.writePermissionDenied"), "error");
     }
     renderCatalogLists();
   } catch (error) {
     console.error(error);
-    showToast(error.message || t("admin.catalog.loadFailed"), "error");
-    throw error;
+    const defaults = getDefaultCatalog();
+    catalogDepartments = [...defaults.departments];
+    catalogRanks = [...defaults.ranks];
+    renderCatalogLists();
+    const message = error?.code === "permission-denied"
+      ? t("admin.catalog.writePermissionDenied")
+      : (error.message || t("admin.catalog.loadFailed"));
+    showToast(message, "error");
   } finally {
     if (showLoader) showPageLoader(false);
   }
@@ -639,7 +673,12 @@ async function addCatalogItem(type) {
     showToast(t("admin.catalog.added"), "success");
   } catch (error) {
     console.error(error);
-    showToast(error.message === "catalog.emptyNotAllowed" ? t("admin.catalog.cannotEmpty") : (error.message || t("admin.catalog.saveFailed")), "error");
+    const message = error?.code === "permission-denied"
+      ? t("admin.catalog.writePermissionDenied")
+      : (error.message === "catalog.emptyNotAllowed"
+        ? t("admin.catalog.cannotEmpty")
+        : (error.message || t("admin.catalog.saveFailed")));
+    showToast(message, "error");
   } finally {
     showPageLoader(false);
   }
@@ -651,10 +690,22 @@ async function addDepartmentItem() {
   if (!nameInput || !codeInput) return;
 
   const name = nameInput.value.trim();
-  const code = codeInput.value.trim().toUpperCase();
-  if (!name || !code) {
+  let code = codeInput.value.trim().toUpperCase();
+  if (!name) {
     showToast(t("admin.catalog.enterDepartmentBoth"), "error");
     return;
+  }
+  if (!code) {
+    code = name.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 16);
+    codeInput.value = code;
+  }
+  if (!code) {
+    showToast(t("admin.catalog.enterDepartmentBoth"), "error");
+    return;
+  }
+
+  if (!catalogRanks.length) {
+    catalogRanks = [...getDefaultCatalog().ranks];
   }
 
   const nextEntry = { name, code };
@@ -682,7 +733,12 @@ async function addDepartmentItem() {
     showToast(t("admin.catalog.added"), "success");
   } catch (error) {
     console.error(error);
-    showToast(error.message === "catalog.emptyNotAllowed" ? t("admin.catalog.cannotEmpty") : (error.message || t("admin.catalog.saveFailed")), "error");
+    const message = error?.code === "permission-denied"
+      ? t("admin.catalog.writePermissionDenied")
+      : (error.message === "catalog.emptyNotAllowed"
+        ? t("admin.catalog.cannotEmpty")
+        : (error.message || t("admin.catalog.saveFailed")));
+    showToast(message, "error");
   } finally {
     showPageLoader(false);
   }
