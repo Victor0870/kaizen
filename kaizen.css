@@ -115,6 +115,24 @@
   border-color: rgba(15, 118, 110, 0.55);
 }
 
+.account-nav-card {
+  width: 100%;
+  margin-bottom: 0.55rem;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.account-nav-card:hover,
+.account-nav-card.active {
+  border-color: #99f6e4;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+}
+
 .kz-account-card {
   padding: 1.25rem;
 }

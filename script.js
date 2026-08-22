@@ -468,15 +468,22 @@ async function showAppScreen(profile, firebaseUser) {
 function fillUserDisplay(profile, firebaseUser) {
   const name = profile.hoTen || "-";
   const email = firebaseUser.email || profile.email || "";
+  const department = profile.department || "-";
   document.getElementById("displayHoTen").textContent = name;
   document.getElementById("displayTaiKhoan").textContent = profile.taiKhoan || "-";
-  document.getElementById("displayDepartment").textContent = profile.department || "-";
+  document.getElementById("displayDepartment").textContent = department;
   document.getElementById("displayCapBac").textContent = profile.capBac || "-";
   const emailEl = document.getElementById("accountEmail");
   if (emailEl) emailEl.textContent = email;
   const initials = getInitials(name);
   const accountAvatar = document.getElementById("accountUserInitials");
   if (accountAvatar) accountAvatar.textContent = initials;
+  const sidebarInitials = document.getElementById("appUserInitials");
+  if (sidebarInitials) sidebarInitials.textContent = initials;
+  const sidebarName = document.getElementById("sidebarUserName");
+  if (sidebarName) sidebarName.textContent = name;
+  const sidebarDept = document.getElementById("sidebarUserDept");
+  if (sidebarDept) sidebarDept.textContent = department;
 
   const proposer = document.getElementById("ideaProposer");
   const proposer2 = document.getElementById("ideaProposer2");
@@ -505,7 +512,7 @@ function syncFormDefaults() {
 
 function setActiveTab(tab) {
   activeTab = tab;
-  document.querySelectorAll(".kz-tab, .admin-nav-item[data-tab]").forEach((el) => {
+  document.querySelectorAll(".kz-tab, [data-tab]").forEach((el) => {
     el.classList.toggle("active", el.dataset.tab === tab);
   });
   document.getElementById("tabIdea")?.classList.toggle("hidden", tab !== "idea");

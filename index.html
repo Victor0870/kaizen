@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css?v=20260822d">
-  <link rel="stylesheet" href="./kaizen.css?v=20260822d">
+  <link rel="stylesheet" href="./style.css?v=20260822e">
+  <link rel="stylesheet" href="./kaizen.css?v=20260822e">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -136,8 +136,12 @@
               <button type="button" class="lang-switch-btn" data-lang="en">EN</button>
             </div>
           </div>
-          <button type="button" id="accountNavBtn" class="admin-nav-item account-nav-btn" data-tab="account" data-i18n="nav.account">
-            Tài khoản
+          <button type="button" id="accountNavBtn" class="admin-user-card account-nav-card" data-tab="account" title="Tài khoản">
+            <div id="appUserInitials" class="admin-user-avatar">U</div>
+            <div class="admin-user-meta">
+              <strong id="sidebarUserName">-</strong>
+              <span id="sidebarUserDept">-</span>
+            </div>
           </button>
           <button type="button" id="logoutBtn" class="ghost-btn full-btn admin-logout-btn" data-i18n="common.logout">Đăng xuất</button>
         </div>
@@ -370,6 +374,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260822d"></script>
+  <script type="module" src="./script.js?v=20260822e"></script>
 </body>
 </html>
