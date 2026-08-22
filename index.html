@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css?v=20260822c">
-  <link rel="stylesheet" href="./kaizen.css?v=20260822c">
+  <link rel="stylesheet" href="./style.css?v=20260822d">
+  <link rel="stylesheet" href="./kaizen.css?v=20260822d">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -105,19 +105,6 @@
   </main>
 
   <section id="appScreen" class="screen hidden app-page kz-app">
-    <nav class="kz-top-menu" id="kzTopMenu" aria-label="Kaizen">
-      <div class="kz-top-menu-inner">
-        <div class="kz-top-menu-tabs" id="kzTabs">
-          <button type="button" class="kz-tab active" data-tab="idea" data-i18n="kaizen.tab.idea">1. Phiếu Ý Tưởng Kaizen</button>
-          <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">2. Báo Cáo Kết Quả Kaizen</button>
-          <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">3. Danh Sách Ý Tưởng</button>
-        </div>
-        <button type="button" id="headerSaveBtn" class="kz-save-btn">
-          <span data-i18n="kaizen.save">Lưu dữ liệu</span>
-        </button>
-      </div>
-    </nav>
-
     <div class="admin-layout kz-body-layout">
       <aside class="admin-sidebar">
         <div class="admin-sidebar-brand">
@@ -156,107 +143,121 @@
         </div>
       </aside>
 
-      <div class="admin-main app-main">
-        <!-- TAB ACCOUNT -->
-        <div id="tabAccount" class="kz-panel hidden">
-          <div class="kz-card kz-account-card">
-            <div class="kz-account-head">
-              <div id="accountUserInitials" class="admin-user-avatar kz-account-avatar">U</div>
-              <div>
-                <h2 data-i18n="account.title">Thông tin tài khoản</h2>
-                <p id="accountEmail" class="kz-account-email">-</p>
-              </div>
+      <div class="kz-content-column">
+        <nav class="kz-top-menu" id="kzTopMenu" aria-label="Kaizen">
+          <div class="kz-top-menu-inner">
+            <div class="kz-top-menu-tabs" id="kzTabs">
+              <button type="button" class="kz-tab active" data-tab="idea" data-i18n="kaizen.tab.idea">1. Phiếu Ý Tưởng Kaizen</button>
+              <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">2. Báo Cáo Kết Quả Kaizen</button>
+              <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">3. Danh Sách Ý Tưởng</button>
             </div>
-            <section class="user-info-grid kz-account-grid">
-              <div class="info-card">
-                <span class="info-label" data-i18n="common.fullName">Họ tên</span>
-                <strong id="displayHoTen">-</strong>
+            <button type="button" id="headerSaveBtn" class="kz-save-btn">
+              <span data-i18n="kaizen.save">Lưu dữ liệu</span>
+            </button>
+          </div>
+        </nav>
+
+        <div class="admin-main app-main">
+          <!-- TAB ACCOUNT -->
+          <div id="tabAccount" class="kz-panel hidden">
+            <div class="kz-card kz-account-card">
+              <div class="kz-account-head">
+                <div id="accountUserInitials" class="admin-user-avatar kz-account-avatar">U</div>
+                <div>
+                  <h2 data-i18n="account.title">Thông tin tài khoản</h2>
+                  <p id="accountEmail" class="kz-account-email">-</p>
+                </div>
               </div>
-              <div class="info-card">
-                <span class="info-label" data-i18n="common.account">Mã nhân viên</span>
-                <strong id="displayTaiKhoan">-</strong>
+              <section class="user-info-grid kz-account-grid">
+                <div class="info-card">
+                  <span class="info-label" data-i18n="common.fullName">Họ tên</span>
+                  <strong id="displayHoTen">-</strong>
+                </div>
+                <div class="info-card">
+                  <span class="info-label" data-i18n="common.account">Mã nhân viên</span>
+                  <strong id="displayTaiKhoan">-</strong>
+                </div>
+                <div class="info-card">
+                  <span class="info-label" data-i18n="common.department">Bộ phận</span>
+                  <strong id="displayDepartment">-</strong>
+                </div>
+                <div class="info-card">
+                  <span class="info-label" data-i18n="common.capBac">Cấp bậc</span>
+                  <strong id="displayCapBac">-</strong>
+                </div>
+              </section>
+              <div class="kz-account-actions">
+                <a href="./change-password.html" class="primary-btn inline-btn" data-i18n="account.changePassword">Đổi mật khẩu</a>
               </div>
-              <div class="info-card">
-                <span class="info-label" data-i18n="common.department">Bộ phận</span>
-                <strong id="displayDepartment">-</strong>
-              </div>
-              <div class="info-card">
-                <span class="info-label" data-i18n="common.capBac">Cấp bậc</span>
-                <strong id="displayCapBac">-</strong>
-              </div>
-            </section>
-            <div class="kz-account-actions">
-              <a href="./change-password.html" class="primary-btn inline-btn" data-i18n="account.changePassword">Đổi mật khẩu</a>
             </div>
           </div>
-        </div>
 
-        <!-- TAB IDEA -->
-        <div id="tabIdea" class="kz-panel">
-          <div class="kz-card">
-            <div class="kz-card-head idea">
-              <div>
-                <h2 data-i18n="kaizen.idea.title">PHIẾU LẬP Ý TƯỞNG KAIZEN</h2>
-                <p data-i18n="kaizen.idea.subtitle">Ghi nhận thông tin thực trạng, nguyên nhân & giải pháp dự kiến</p>
+          <!-- TAB IDEA -->
+          <div id="tabIdea" class="kz-panel">
+            <div class="kz-card">
+              <div class="kz-card-head idea">
+                <div>
+                  <h2 data-i18n="kaizen.idea.title">PHIẾU LẬP Ý TƯỞNG KAIZEN</h2>
+                  <p data-i18n="kaizen.idea.subtitle">Ghi nhận thông tin thực trạng, nguyên nhân & giải pháp dự kiến</p>
+                </div>
+                <div class="kz-meta-grid">
+                  <label><span data-i18n="kaizen.field.kaizenId">Mã Kaizen</span><input type="text" id="ideaKaizenId"></label>
+                  <label><span data-i18n="kaizen.field.date">Ngày</span><input type="date" id="ideaDate"></label>
+                  <label><span data-i18n="kaizen.field.dept">Bộ phận</span><input type="text" id="ideaDept"></label>
+                  <label><span data-i18n="kaizen.field.proposer">Người đề xuất</span><input type="text" id="ideaProposer"></label>
+                </div>
               </div>
-              <div class="kz-meta-grid">
-                <label><span data-i18n="kaizen.field.kaizenId">Mã Kaizen</span><input type="text" id="ideaKaizenId"></label>
-                <label><span data-i18n="kaizen.field.date">Ngày</span><input type="date" id="ideaDate"></label>
-                <label><span data-i18n="kaizen.field.dept">Bộ phận</span><input type="text" id="ideaDept"></label>
-                <label><span data-i18n="kaizen.field.proposer">Người đề xuất</span><input type="text" id="ideaProposer"></label>
-              </div>
-            </div>
 
-            <div class="kz-approval-row">
-              <label><span data-i18n="kaizen.field.approved">Người duyệt</span><input type="text" id="ideaApproved"></label>
-              <label><span data-i18n="kaizen.field.checked">Kiểm tra</span><input type="text" id="ideaChecked"></label>
-              <label><span data-i18n="kaizen.field.proposer">Đề xuất</span><input type="text" id="ideaProposer2"></label>
-            </div>
+              <div class="kz-approval-row">
+                <label><span data-i18n="kaizen.field.approved">Người duyệt</span><input type="text" id="ideaApproved"></label>
+                <label><span data-i18n="kaizen.field.checked">Kiểm tra</span><input type="text" id="ideaChecked"></label>
+                <label><span data-i18n="kaizen.field.proposer">Đề xuất</span><input type="text" id="ideaProposer2"></label>
+              </div>
 
-            <div class="kz-content-row">
-              <div class="kz-grow">
-                <label class="kz-label" data-i18n="kaizen.field.improvedContent">Nội dung cải tiến</label>
-                <input type="text" id="ideaImprovedContent" class="kz-input-accent">
+              <div class="kz-content-row">
+                <div class="kz-grow">
+                  <label class="kz-label" data-i18n="kaizen.field.improvedContent">Nội dung cải tiến</label>
+                  <input type="text" id="ideaImprovedContent" class="kz-input-accent">
+                </div>
+                <div>
+                  <label class="kz-label" data-i18n="kaizen.field.classification">Loại vấn đề</label>
+                  <div id="ideaClassification" class="kz-class-btns"></div>
+                </div>
               </div>
-              <div>
-                <label class="kz-label" data-i18n="kaizen.field.classification">Loại vấn đề</label>
-                <div id="ideaClassification" class="kz-class-btns"></div>
-              </div>
-            </div>
 
-            <div class="kz-split">
-              <div class="kz-box">
-                <div class="kz-box-title warn" data-i18n="kaizen.before.status">BEFORE STATUS</div>
-                <label class="kz-label" data-i18n="kaizen.field.problemDesc">Mô tả vấn đề</label>
-                <textarea id="ideaProblemDesc" rows="3"></textarea>
-                <label class="kz-label" data-i18n="kaizen.field.improvementPlan">Kế hoạch cải tiến</label>
-                <input type="text" id="ideaImprovementPlan">
-                <label class="kz-label" data-i18n="kaizen.field.improvementActions">Hành động cải tiến</label>
-                <input type="text" id="ideaImprovementActions">
-                <label class="kz-label" data-i18n="kaizen.field.riskIdentification">Nhận diện rủi ro</label>
-                <input type="text" id="ideaRiskIdentification">
-                <label class="kz-upload">
-                  <span data-i18n="kaizen.field.beforeImage">Ảnh before</span>
-                  <input type="file" id="ideaBeforeImage" accept="image/*">
-                </label>
+              <div class="kz-split">
+                <div class="kz-box">
+                  <div class="kz-box-title warn" data-i18n="kaizen.before.status">BEFORE STATUS</div>
+                  <label class="kz-label" data-i18n="kaizen.field.problemDesc">Mô tả vấn đề</label>
+                  <textarea id="ideaProblemDesc" rows="3"></textarea>
+                  <label class="kz-label" data-i18n="kaizen.field.improvementPlan">Kế hoạch cải tiến</label>
+                  <input type="text" id="ideaImprovementPlan">
+                  <label class="kz-label" data-i18n="kaizen.field.improvementActions">Hành động cải tiến</label>
+                  <input type="text" id="ideaImprovementActions">
+                  <label class="kz-label" data-i18n="kaizen.field.riskIdentification">Nhận diện rủi ro</label>
+                  <input type="text" id="ideaRiskIdentification">
+                  <label class="kz-upload">
+                    <span data-i18n="kaizen.field.beforeImage">Ảnh before</span>
+                    <input type="file" id="ideaBeforeImage" accept="image/*">
+                  </label>
+                </div>
+                <div class="kz-box">
+                  <div class="kz-box-title ok" data-i18n="kaizen.after.target">AFTER TARGET</div>
+                  <label class="kz-label" data-i18n="kaizen.field.afterTarget">Kết quả kỳ vọng</label>
+                  <textarea id="ideaAfterDescription" rows="8"></textarea>
+                  <label class="kz-upload ok">
+                    <span data-i18n="kaizen.field.afterImage">Ảnh after</span>
+                    <input type="file" id="ideaAfterImage" accept="image/*">
+                  </label>
+                </div>
               </div>
-              <div class="kz-box">
-                <div class="kz-box-title ok" data-i18n="kaizen.after.target">AFTER TARGET</div>
-                <label class="kz-label" data-i18n="kaizen.field.afterTarget">Kết quả kỳ vọng</label>
-                <textarea id="ideaAfterDescription" rows="8"></textarea>
-                <label class="kz-upload ok">
-                  <span data-i18n="kaizen.field.afterImage">Ảnh after</span>
-                  <input type="file" id="ideaAfterImage" accept="image/*">
-                </label>
-              </div>
-            </div>
 
-            <div class="kz-footer-actions">
-              <button type="button" id="saveIdeaBtn" class="primary-btn" data-i18n="kaizen.saveIdea">Lưu phiếu ý tưởng</button>
-              <button type="button" id="goReportBtn" class="kz-btn-purple" data-i18n="kaizen.goReport">Chuyển sang báo cáo Kaizen</button>
+              <div class="kz-footer-actions">
+                <button type="button" id="saveIdeaBtn" class="primary-btn" data-i18n="kaizen.saveIdea">Lưu phiếu ý tưởng</button>
+                <button type="button" id="goReportBtn" class="kz-btn-purple" data-i18n="kaizen.goReport">Chuyển sang báo cáo Kaizen</button>
+              </div>
             </div>
           </div>
-        </div>
 
         <!-- TAB REPORT -->
         <div id="tabReport" class="kz-panel hidden">
@@ -363,11 +364,12 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
     </div>
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260822b"></script>
+  <script type="module" src="./script.js?v=20260822d"></script>
 </body>
 </html>

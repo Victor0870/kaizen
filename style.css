@@ -1147,7 +1147,9 @@ textarea {
 }
 
 .app-page.kz-app {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1155,6 +1157,8 @@ textarea {
 .app-page .kz-body-layout.admin-layout {
   flex: 1;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .app-page .admin-main {
@@ -1163,11 +1167,21 @@ textarea {
 }
 
 @media (min-width: 768px) {
+  .app-page .kz-body-layout.admin-layout {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
   .app-page .kz-body-layout .admin-sidebar {
-    height: auto;
-    min-height: calc(100vh - 58px);
-    max-height: calc(100vh - 58px);
+    position: sticky;
     top: 0;
+    align-self: stretch;
+    width: 260px;
+    flex-shrink: 0;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow-y: auto;
   }
 }
 
