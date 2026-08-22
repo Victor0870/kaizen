@@ -1272,14 +1272,14 @@ textarea {
 }
 
 .admin-nav-item:not(.disabled):hover {
-  background: #fff5f5;
+  background: #f0fdfa;
   color: var(--brand-red-dark);
 }
 
 .admin-nav-item.active {
   background: linear-gradient(135deg, var(--brand-red), var(--brand-red-dark));
   color: #fff;
-  box-shadow: 0 8px 20px rgba(237, 28, 36, 0.18);
+  box-shadow: 0 8px 20px rgba(15, 118, 110, 0.18);
 }
 
 .admin-nav-item.disabled {

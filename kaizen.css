@@ -141,6 +141,61 @@
   border-color: rgba(15, 118, 110, 0.55);
 }
 
+.nav-sub {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 8px 10px;
+  padding-left: 8px;
+  border-left: 2px solid #99f6e4;
+}
+
+.nav-sub-item {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 8px 10px !important;
+  margin-bottom: 2px !important;
+}
+
+.kz-dash-card {
+  overflow: hidden;
+}
+
+.kz-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.85rem;
+  padding: 1.1rem;
+}
+
+.kz-dash-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+  border: 1px solid #ccfbf1;
+  background: #f0fdfa;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.kz-dash-stat span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.kz-dash-stat strong {
+  font-size: 1.35rem;
+}
+
+.status-badge.status-submitted { background: #ccfbf1; color: #0f766e; }
+.status-badge.status-approved { background: #d1fae5; color: #047857; }
+.status-badge.status-in_progress { background: #fef3c7; color: #92400e; }
+.status-badge.status-completed { background: #e0f2fe; color: #075985; }
+
 .account-nav-card {
   width: 100%;
   margin-bottom: 0.55rem;

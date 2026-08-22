@@ -44,6 +44,25 @@ export const CLASSIFICATION_CODES = [
 ];
 
 export const KAIZEN_STATUS = {
-  IDEA: "idea_new",
-  REPORT: "report_done"
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  IN_PROGRESS: "in_progress",
+  COMPLETED: "completed",
+  /** legacy */
+  IDEA: "submitted",
+  REPORT: "completed"
 };
+
+export const LIST_STATUS_FILTERS = [
+  "submitted",
+  "approved",
+  "in_progress",
+  "completed"
+];
+
+export function normalizeKaizenStatus(status) {
+  if (status === "idea_new") return KAIZEN_STATUS.SUBMITTED;
+  if (status === "report_done") return KAIZEN_STATUS.COMPLETED;
+  if (LIST_STATUS_FILTERS.includes(status)) return status;
+  return KAIZEN_STATUS.SUBMITTED;
+}

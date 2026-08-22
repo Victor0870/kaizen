@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css?v=20260822f">
-  <link rel="stylesheet" href="./kaizen.css?v=20260822f">
+  <link rel="stylesheet" href="./style.css?v=20260822g">
+  <link rel="stylesheet" href="./kaizen.css?v=20260822g">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -116,6 +116,21 @@
         </div>
 
         <nav class="admin-sidebar-nav">
+          <p class="admin-nav-label" data-i18n="nav.section.functions">Chức năng</p>
+          <button type="button" class="admin-nav-item" data-tab="idea" data-i18n="nav.idea">Phiếu ý tưởng</button>
+          <button type="button" class="admin-nav-item" data-tab="report" data-i18n="nav.report">Báo cáo kết quả</button>
+          <button type="button" class="admin-nav-item" data-tab="dashboard" data-i18n="nav.dashboard">Bảng thống kê</button>
+
+          <div class="nav-group" id="navGroupList">
+            <button type="button" class="admin-nav-item" data-tab="list" data-i18n="nav.list">Danh sách ý tưởng</button>
+            <div class="nav-sub">
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="submitted" data-i18n="kaizen.status.submitted">Đã gửi</button>
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="approved" data-i18n="kaizen.status.approved">Đã được phê duyệt</button>
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="in_progress" data-i18n="kaizen.status.in_progress">Đang tiến hành</button>
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="completed" data-i18n="kaizen.status.completed">Đã hoàn thành</button>
+            </div>
+          </div>
+
           <p class="admin-nav-label" data-i18n="nav.section.quickLinks">Liên kết nhanh</p>
           <a href="./admin.html" class="admin-nav-item" data-i18n="nav.admin">Quản trị hệ thống</a>
         </nav>
@@ -144,9 +159,10 @@
         <nav class="kz-top-menu" id="kzTopMenu" aria-label="Kaizen">
           <div class="kz-top-menu-inner">
             <div class="kz-top-menu-tabs" id="kzTabs">
-              <button type="button" class="kz-tab active" data-tab="idea" data-i18n="kaizen.tab.idea">1. Phiếu Ý Tưởng Kaizen</button>
-              <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">2. Báo Cáo Kết Quả Kaizen</button>
-              <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">3. Danh Sách Ý Tưởng</button>
+              <button type="button" class="kz-tab active" data-tab="idea" data-i18n="kaizen.tab.idea">Phiếu Ý Tưởng</button>
+              <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">Báo Cáo Kết Quả</button>
+              <button type="button" class="kz-tab" data-tab="dashboard" data-i18n="kaizen.tab.dashboard">Bảng Thống Kê</button>
+              <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">Danh Sách Ý Tưởng</button>
             </div>
             <div class="kz-top-lang sidebar-lang-actions">
               <button type="button" class="lang-switch-btn" data-lang="vi">VI</button>
@@ -156,6 +172,19 @@
         </nav>
 
         <div class="admin-main app-main">
+          <!-- TAB DASHBOARD -->
+          <div id="tabDashboard" class="kz-panel hidden">
+            <div class="kz-card kz-dash-card">
+              <div class="kz-list-head">
+                <div>
+                  <h2 data-i18n="dashboard.title">Bảng thống kê Kaizen</h2>
+                  <p data-i18n="dashboard.subtitle">Tổng quan số lượng phiếu theo trạng thái</p>
+                </div>
+              </div>
+              <div class="kz-dash-grid" id="dashboardStats"></div>
+            </div>
+          </div>
+
           <!-- TAB ACCOUNT -->
           <div id="tabAccount" class="kz-panel hidden">
             <div class="kz-card kz-account-card">
@@ -336,8 +365,8 @@
           <div class="kz-card">
             <div class="kz-list-head">
               <div>
-                <h2 data-i18n="kaizen.list.title">Cơ Sở Dữ Liệu Kaizen</h2>
-                <p data-i18n="kaizen.list.subtitle">Danh sách phiếu đã lưu</p>
+                <h2 id="listTitle" data-i18n="kaizen.list.title">Cơ Sở Dữ Liệu Kaizen</h2>
+                <p id="listSubtitle" data-i18n="kaizen.list.subtitle">Danh sách phiếu đã lưu</p>
               </div>
               <button type="button" id="createNewBtn" class="kz-btn-purple" data-i18n="kaizen.list.createNew">Tạo Kaizen mới</button>
             </div>
@@ -368,6 +397,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260822f"></script>
+  <script type="module" src="./script.js?v=20260822g"></script>
 </body>
 </html>

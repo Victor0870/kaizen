@@ -5,7 +5,9 @@ import {
   CAP_BAC_OPTIONS,
   DEPARTMENT_OPTIONS,
   CLASSIFICATION_CODES,
-  KAIZEN_STATUS
+  KAIZEN_STATUS,
+  LIST_STATUS_FILTERS,
+  normalizeKaizenStatus
 } from "./constants.js";
 import {
   calcTotalSavings,
@@ -33,6 +35,7 @@ let currentUserProfile = null;
 let isHandlingRegistration = false;
 let toastTimer = null;
 let activeTab = "idea";
+let listStatusFilter = "all";
 let selectedClassification = [];
 let kaizenListCache = [];
 let isSaving = false;
@@ -58,6 +61,8 @@ async function initApp() {
     if (currentUserProfile && currentFirebaseUser) {
       fillUserDisplay(currentUserProfile, currentFirebaseUser);
     }
+    updateListHeading();
+    renderDashboardStats();
   });
 
   if (PREVIEW_MODE) {
@@ -147,7 +152,7 @@ function bindEvents() {
   document.getElementById("togglePasswordBtn")?.addEventListener("click", togglePasswordVisibility);
 
   document.querySelectorAll("[data-tab]").forEach((el) => {
-    el.addEventListener("click", () => setActiveTab(el.dataset.tab));
+    el.addEventListener("click", () => setActiveTab(el.dataset.tab, el.dataset.status));
   });
 
   document.getElementById("goReportBtn")?.addEventListener("click", () => {
@@ -506,17 +511,49 @@ function syncFormDefaults() {
   if (reportDate && !reportDate.value) reportDate.value = today;
 }
 
-function setActiveTab(tab) {
+function setActiveTab(tab, statusFilter) {
   activeTab = tab;
-  document.querySelectorAll(".kz-tab, [data-tab]").forEach((el) => {
-    el.classList.toggle("active", el.dataset.tab === tab);
+  if (tab === "list") {
+    listStatusFilter = statusFilter || "all";
+  }
+
+  document.querySelectorAll("[data-tab]").forEach((el) => {
+    const isListFilter = el.dataset.status != null;
+    if (isListFilter) {
+      el.classList.toggle("active", tab === "list" && el.dataset.status === listStatusFilter);
+    } else {
+      el.classList.toggle("active", el.dataset.tab === tab);
+    }
   });
+
+  document.getElementById("navGroupList")?.classList.toggle("is-open", tab === "list");
+
   document.getElementById("tabIdea")?.classList.toggle("hidden", tab !== "idea");
   document.getElementById("tabReport")?.classList.toggle("hidden", tab !== "report");
+  document.getElementById("tabDashboard")?.classList.toggle("hidden", tab !== "dashboard");
   document.getElementById("tabList")?.classList.toggle("hidden", tab !== "list");
   document.getElementById("tabAccount")?.classList.toggle("hidden", tab !== "account");
 
-  if (tab === "list") loadKaizenListSafe();
+  if (tab === "list") {
+    updateListHeading();
+    loadKaizenListSafe();
+  }
+  if (tab === "dashboard") {
+    loadKaizenListSafe();
+  }
+}
+
+function updateListHeading() {
+  const title = document.getElementById("listTitle");
+  const subtitle = document.getElementById("listSubtitle");
+  if (!title || !subtitle) return;
+  if (listStatusFilter && listStatusFilter !== "all") {
+    title.textContent = t(`kaizen.status.${listStatusFilter}`);
+    subtitle.textContent = t("kaizen.list.filterHint");
+  } else {
+    title.textContent = t("kaizen.list.title");
+    subtitle.textContent = t("kaizen.list.subtitle");
+  }
 }
 
 function renderClassificationButtons() {
@@ -620,7 +657,7 @@ function collectFormPayload(mode) {
     hourlyCost,
     totalSavings: calcTotalSavings(dailyHoursSaved, monthlyDays, hourlyCost),
     qualitativeEffect: document.getElementById("qualitativeEffect")?.value || "",
-    status: mode === "report" ? KAIZEN_STATUS.REPORT : KAIZEN_STATUS.IDEA,
+    status: mode === "report" ? KAIZEN_STATUS.COMPLETED : KAIZEN_STATUS.SUBMITTED,
     uid: currentFirebaseUser?.uid || currentUserProfile?.uid || "",
     email: currentFirebaseUser?.email || currentUserProfile?.email || "",
     taiKhoan: currentUserProfile?.taiKhoan || "",
@@ -677,28 +714,77 @@ async function loadKaizenListSafe() {
   try {
     kaizenListCache = await fetchKaizenList();
     renderKaizenTable();
+    renderDashboardStats();
   } catch (error) {
     console.warn(error);
     kaizenListCache = [];
     renderKaizenTable();
+    renderDashboardStats();
   }
+}
+
+function getFilteredKaizenList() {
+  if (!listStatusFilter || listStatusFilter === "all") return kaizenListCache;
+  return kaizenListCache.filter((item) => normalizeKaizenStatus(item.status) === listStatusFilter);
+}
+
+function renderDashboardStats() {
+  const wrap = document.getElementById("dashboardStats");
+  if (!wrap) return;
+
+  const counts = Object.fromEntries(LIST_STATUS_FILTERS.map((s) => [s, 0]));
+  let totalSavings = 0;
+  kaizenListCache.forEach((item) => {
+    const status = normalizeKaizenStatus(item.status);
+    if (counts[status] != null) counts[status] += 1;
+    totalSavings += Number(item.totalSavings) || calcTotalSavings(item.dailyHoursSaved, item.monthlyDays, item.hourlyCost);
+  });
+
+  const cards = [
+    { key: "all", label: t("dashboard.total"), value: kaizenListCache.length, tab: "list", status: "all" },
+    ...LIST_STATUS_FILTERS.map((s) => ({
+      key: s,
+      label: t(`kaizen.status.${s}`),
+      value: counts[s],
+      tab: "list",
+      status: s
+    })),
+    { key: "savings", label: t("dashboard.savings"), value: `$${totalSavings.toFixed(2)}` }
+  ];
+
+  wrap.innerHTML = cards.map((card) => {
+    const clickable = card.tab
+      ? `data-tab="${card.tab}" data-status="${card.status}"`
+      : "";
+    return `<button type="button" class="kz-dash-stat"${clickable}>
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(String(card.value))}</strong>
+    </button>`;
+  }).join("");
+
+  wrap.querySelectorAll("[data-tab]").forEach((el) => {
+    el.addEventListener("click", () => setActiveTab(el.dataset.tab, el.dataset.status));
+  });
 }
 
 function renderKaizenTable() {
   const tbody = document.getElementById("kaizenTableBody");
   if (!tbody) return;
 
-  if (!kaizenListCache.length) {
+  const list = getFilteredKaizenList();
+
+  if (!list.length) {
     tbody.innerHTML = `<tr><td colspan="8" class="empty-table">${t("common.noData")}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = kaizenListCache.map((item) => {
+  tbody.innerHTML = list.map((item) => {
     const savings = item.totalSavings != null
       ? Number(item.totalSavings).toFixed(2)
       : calcTotalSavings(item.dailyHoursSaved, item.monthlyDays, item.hourlyCost).toFixed(2);
     const classes = (item.classification || []).map((c) => `<span class="kz-chip">${escapeHtml(c)}</span>`).join(" ");
-    const statusKey = item.status === KAIZEN_STATUS.REPORT ? "kaizen.status.report_done" : "kaizen.status.idea_new";
+    const status = normalizeKaizenStatus(item.status);
+    const statusKey = `kaizen.status.${status}`;
     return `
       <tr>
         <td class="kz-mono">${escapeHtml(item.kaizenId || item.id)}</td>
@@ -708,7 +794,7 @@ function renderKaizenTable() {
         <td>${classes || "-"}</td>
         <td>${escapeHtml(item.proposer || "-")}</td>
         <td class="kz-money">$${savings}</td>
-        <td><span class="status-badge status-active">${t(statusKey)}</span></td>
+        <td><span class="status-badge status-${status}">${t(statusKey)}</span></td>
       </tr>
     `;
   }).join("");
