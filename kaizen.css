@@ -74,6 +74,32 @@
   color: #0f766e;
 }
 
+.kz-top-lang {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  gap: 6px;
+}
+
+.kz-top-lang .lang-switch-btn {
+  min-width: 44px;
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ccfbf1;
+  background: transparent;
+}
+
+.kz-top-lang .lang-switch-btn:hover {
+  border-color: #fff;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.kz-top-lang .lang-switch-btn.active {
+  background: #fff;
+  border-color: #fff;
+  color: #0f766e;
+}
+
 .kz-save-btn {
   grid-column: 3;
   justify-self: end;
@@ -504,6 +530,11 @@
     grid-column: 1;
     width: 100%;
     justify-content: center;
+  }
+
+  .kz-top-lang {
+    grid-column: 1;
+    justify-self: center;
   }
 
   .kz-save-btn {

@@ -160,10 +160,6 @@ function bindEvents() {
   });
   document.getElementById("saveIdeaBtn")?.addEventListener("click", () => saveKaizen("idea"));
   document.getElementById("saveReportBtn")?.addEventListener("click", () => saveKaizen("report"));
-  document.getElementById("headerSaveBtn")?.addEventListener("click", () => {
-    if (activeTab === "account" || activeTab === "list") return;
-    saveKaizen(activeTab === "report" ? "report" : "idea");
-  });
 
   ["beforeWorkHour", "afterWorkHour", "beforeNearMiss", "afterNearMiss", "dailyHoursSaved", "monthlyDays", "hourlyCost"]
     .forEach((id) => document.getElementById(id)?.addEventListener("input", updateMetricsUI));
@@ -519,11 +515,6 @@ function setActiveTab(tab) {
   document.getElementById("tabReport")?.classList.toggle("hidden", tab !== "report");
   document.getElementById("tabList")?.classList.toggle("hidden", tab !== "list");
   document.getElementById("tabAccount")?.classList.toggle("hidden", tab !== "account");
-
-  const saveBtn = document.getElementById("headerSaveBtn");
-  if (saveBtn) {
-    saveBtn.classList.toggle("hidden", tab === "account" || tab === "list");
-  }
 
   if (tab === "list") loadKaizenListSafe();
 }

@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css?v=20260822e">
-  <link rel="stylesheet" href="./kaizen.css?v=20260822e">
+  <link rel="stylesheet" href="./style.css?v=20260822f">
+  <link rel="stylesheet" href="./kaizen.css?v=20260822f">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -129,13 +129,6 @@
             </div>
             <a href="./change-password.html" class="sidebar-password-expiry-hint sidebar-password-expiry-link" data-i18n="passwordExpiry.hint">Click here to change pass</a>
           </div>
-          <div class="sidebar-lang-switch">
-            <span class="sidebar-lang-label" data-i18n="lang.label">Ngôn ngữ</span>
-            <div class="sidebar-lang-actions">
-              <button type="button" class="lang-switch-btn" data-lang="vi">VI</button>
-              <button type="button" class="lang-switch-btn" data-lang="en">EN</button>
-            </div>
-          </div>
           <button type="button" id="accountNavBtn" class="admin-user-card account-nav-card" data-tab="account" title="Tài khoản">
             <div id="appUserInitials" class="admin-user-avatar">U</div>
             <div class="admin-user-meta">
@@ -155,9 +148,10 @@
               <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">2. Báo Cáo Kết Quả Kaizen</button>
               <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">3. Danh Sách Ý Tưởng</button>
             </div>
-            <button type="button" id="headerSaveBtn" class="kz-save-btn">
-              <span data-i18n="kaizen.save">Lưu dữ liệu</span>
-            </button>
+            <div class="kz-top-lang sidebar-lang-actions">
+              <button type="button" class="lang-switch-btn" data-lang="vi">VI</button>
+              <button type="button" class="lang-switch-btn" data-lang="en">EN</button>
+            </div>
           </div>
         </nav>
 
@@ -374,6 +368,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260822e"></script>
+  <script type="module" src="./script.js?v=20260822f"></script>
 </body>
 </html>
