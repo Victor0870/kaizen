@@ -7,13 +7,29 @@ import {
   CLASSIFICATION_CODES,
   KAIZEN_STATUS,
   LIST_STATUS_FILTERS,
-  normalizeKaizenStatus
+  APPROVAL_PATH,
+  normalizeKaizenStatus,
+  getWorkflowStepIndex,
+  getWorkflowStepsForRecord,
+  filterKaizenForListView,
+  filterKaizenForDashboard,
+  normalizeRole,
+  normalizeApprovalPath,
+  canSubmitKaizen,
+  canApproveL1,
+  canApproveL2,
+  canUseApprovalLists
 } from "./constants.js";
+import { fetchCatalog } from "./catalog-service.js";
 import {
   calcTotalSavings,
   uploadKaizenImage,
   saveKaizenRecord,
-  fetchKaizenList
+  fetchKaizenList,
+  fetchKaizenById,
+  approveKaizenL1,
+  approveKaizenL2,
+  startKaizenProgress
 } from "./kaizen-service.js";
 
 let auth = null;
@@ -36,15 +52,21 @@ let isHandlingRegistration = false;
 let toastTimer = null;
 let activeTab = "idea";
 let listStatusFilter = "all";
+let listViewMode = "mine";
 let selectedClassification = [];
 let kaizenListCache = [];
 let isSaving = false;
+let editingKaizenDocId = null;
+let selectedProgressKaizenId = null;
+let registerCatalog = {
+  departments: [...DEPARTMENT_OPTIONS],
+  ranks: [...CAP_BAC_OPTIONS]
+};
 
 document.addEventListener("DOMContentLoaded", initApp);
 
 async function initApp() {
   initI18n();
-  populateRegisterSelects();
   bindEvents();
   syncFormDefaults();
   renderClassificationButtons();
@@ -63,9 +85,13 @@ async function initApp() {
     }
     updateListHeading();
     renderDashboardStats();
+    if (activeTab === "progress" && selectedProgressKaizenId) {
+      renderProgressView(selectedProgressKaizenId);
+    }
   });
 
   if (PREVIEW_MODE) {
+    populateRegisterSelects();
     await enterPreviewMode();
     return;
   }
@@ -87,7 +113,21 @@ async function initApp() {
 
   await initAppCheck();
   await authPersistenceReady;
+  await loadRegisterCatalog();
+  populateRegisterSelects();
   observeAuthState();
+}
+
+async function loadRegisterCatalog() {
+  try {
+    registerCatalog = await fetchCatalog(db, doc, getDoc);
+  } catch (error) {
+    console.warn("Không thể tải danh mục bộ phận/chức danh, dùng mặc định:", error);
+    registerCatalog = {
+      departments: [...DEPARTMENT_OPTIONS],
+      ranks: [...CAP_BAC_OPTIONS]
+    };
+  }
 }
 
 async function enterPreviewMode() {
@@ -135,9 +175,9 @@ function populateRegisterSelects() {
   const currentCap = capSelect.value;
 
   deptSelect.innerHTML = `<option value="">${t("auth.placeholder.selectDepartment")}</option>` +
-    DEPARTMENT_OPTIONS.map((d) => `<option value="${d}">${d}</option>`).join("");
+    registerCatalog.departments.map((d) => `<option value="${escapeHtmlAttr(d)}">${escapeHtml(d)}</option>`).join("");
   capSelect.innerHTML = `<option value="">${t("auth.placeholder.selectCapBac")}</option>` +
-    CAP_BAC_OPTIONS.map((c) => `<option value="${c}">${c}</option>`).join("");
+    registerCatalog.ranks.map((c) => `<option value="${escapeHtmlAttr(c)}">${escapeHtml(c)}</option>`).join("");
 
   if (currentDept) deptSelect.value = currentDept;
   if (currentCap) capSelect.value = currentCap;
@@ -152,7 +192,15 @@ function bindEvents() {
   document.getElementById("togglePasswordBtn")?.addEventListener("click", togglePasswordVisibility);
 
   document.querySelectorAll("[data-tab]").forEach((el) => {
-    el.addEventListener("click", () => setActiveTab(el.dataset.tab, el.dataset.status));
+    el.addEventListener("click", () => {
+      const tab = el.dataset.tab;
+      const listMode = el.dataset.listMode;
+      if (tab === "list") {
+        setActiveTab("list", el.dataset.status || "all", listMode || "mine");
+        return;
+      }
+      setActiveTab(tab);
+    });
   });
 
   document.getElementById("goReportBtn")?.addEventListener("click", () => {
@@ -165,6 +213,9 @@ function bindEvents() {
   });
   document.getElementById("saveIdeaBtn")?.addEventListener("click", () => saveKaizen("idea"));
   document.getElementById("saveReportBtn")?.addEventListener("click", () => saveKaizen("report"));
+  document.getElementById("progressBackBtn")?.addEventListener("click", () => {
+    setActiveTab("list", listStatusFilter, listViewMode);
+  });
 
   ["beforeWorkHour", "afterWorkHour", "beforeNearMiss", "afterNearMiss", "dailyHoursSaved", "monthlyDays", "hourlyCost"]
     .forEach((id) => document.getElementById(id)?.addEventListener("input", updateMetricsUI));
@@ -319,8 +370,8 @@ function validateRegisterForm({ email, password, confirmPassword, taiKhoan, hoTe
   }
   if (password.length < 6) return t("auth.passwordMin6");
   if (password !== confirmPassword) return t("auth.passwordMismatch");
-  if (!DEPARTMENT_OPTIONS.includes(department)) return t("auth.fillRegisterInfo");
-  if (!CAP_BAC_OPTIONS.includes(capBac)) return t("auth.fillRegisterInfo");
+  if (!registerCatalog.departments.includes(department)) return t("auth.fillRegisterInfo");
+  if (!registerCatalog.ranks.includes(capBac)) return t("auth.fillRegisterInfo");
   return "";
 }
 
@@ -462,6 +513,7 @@ async function showAppScreen(profile, firebaseUser) {
   fillUserDisplay(profile, firebaseUser);
   bindPasswordExpiry(profile, firebaseUser);
   syncFormDefaults();
+  applyRoleBasedUI();
   setActiveTab(activeTab || "idea");
   await loadKaizenListSafe();
 }
@@ -474,6 +526,8 @@ function fillUserDisplay(profile, firebaseUser) {
   document.getElementById("displayTaiKhoan").textContent = profile.taiKhoan || "-";
   document.getElementById("displayDepartment").textContent = department;
   document.getElementById("displayCapBac").textContent = profile.capBac || "-";
+  const roleEl = document.getElementById("displayRole");
+  if (roleEl) roleEl.textContent = t(`role.${normalizeRole(profile.role)}`);
   const emailEl = document.getElementById("accountEmail");
   if (emailEl) emailEl.textContent = email;
   const initials = getInitials(name);
@@ -511,27 +565,57 @@ function syncFormDefaults() {
   if (reportDate && !reportDate.value) reportDate.value = today;
 }
 
-function setActiveTab(tab, statusFilter) {
+function setActiveTab(tab, statusFilter, viewMode) {
   activeTab = tab;
   if (tab === "list") {
-    listStatusFilter = statusFilter || "all";
+    listViewMode = viewMode || "mine";
+    listStatusFilter = listViewMode === "mine" ? (statusFilter || "all") : "all";
   }
 
   document.querySelectorAll("[data-tab]").forEach((el) => {
-    const isListFilter = el.dataset.status != null;
-    if (isListFilter) {
-      el.classList.toggle("active", tab === "list" && el.dataset.status === listStatusFilter);
+    const elTab = el.dataset.tab;
+    const elListMode = el.dataset.listMode || "mine";
+    const elStatus = el.dataset.status;
+
+    if (elTab !== "list") {
+      el.classList.toggle("active", elTab === tab);
+      return;
+    }
+
+    if (tab !== "list") {
+      el.classList.remove("active");
+      return;
+    }
+
+    if (listViewMode === "pending_approval") {
+      el.classList.toggle("active", elListMode === "pending_approval");
+      return;
+    }
+    if (listViewMode === "approved_by_me") {
+      el.classList.toggle("active", elListMode === "approved_by_me");
+      return;
+    }
+
+    if (elListMode !== "mine") {
+      el.classList.remove("active");
+      return;
+    }
+
+    if (elStatus) {
+      el.classList.toggle("active", listStatusFilter === elStatus);
     } else {
-      el.classList.toggle("active", el.dataset.tab === tab);
+      el.classList.toggle("active", listStatusFilter === "all");
     }
   });
 
-  document.getElementById("navGroupList")?.classList.toggle("is-open", tab === "list");
+  document.getElementById("navGroupList")?.classList.toggle("is-open", tab === "list" && listViewMode === "mine");
+  document.getElementById("navGroupApproval")?.classList.toggle("is-open", tab === "list" && listViewMode !== "mine");
 
   document.getElementById("tabIdea")?.classList.toggle("hidden", tab !== "idea");
   document.getElementById("tabReport")?.classList.toggle("hidden", tab !== "report");
   document.getElementById("tabDashboard")?.classList.toggle("hidden", tab !== "dashboard");
   document.getElementById("tabList")?.classList.toggle("hidden", tab !== "list");
+  document.getElementById("tabProgress")?.classList.toggle("hidden", tab !== "progress");
   document.getElementById("tabAccount")?.classList.toggle("hidden", tab !== "account");
 
   if (tab === "list") {
@@ -541,18 +625,33 @@ function setActiveTab(tab, statusFilter) {
   if (tab === "dashboard") {
     loadKaizenListSafe();
   }
+  if (tab === "progress" && selectedProgressKaizenId) {
+    renderProgressView(selectedProgressKaizenId);
+  }
+  applyRoleBasedUI();
 }
 
 function updateListHeading() {
   const title = document.getElementById("listTitle");
   const subtitle = document.getElementById("listSubtitle");
   if (!title || !subtitle) return;
+
+  if (listViewMode === "pending_approval") {
+    title.textContent = t("nav.pendingApproval");
+    subtitle.textContent = t("kaizen.list.pendingApprovalHint");
+    return;
+  }
+  if (listViewMode === "approved_by_me") {
+    title.textContent = t("nav.approvedByMe");
+    subtitle.textContent = t("kaizen.list.approvedByMeHint");
+    return;
+  }
   if (listStatusFilter && listStatusFilter !== "all") {
     title.textContent = t(`kaizen.status.${listStatusFilter}`);
-    subtitle.textContent = t("kaizen.list.filterHint");
+    subtitle.textContent = t("kaizen.list.mineHint");
   } else {
     title.textContent = t("kaizen.list.title");
-    subtitle.textContent = t("kaizen.list.subtitle");
+    subtitle.textContent = t("kaizen.list.mineHint");
   }
 }
 
@@ -657,6 +756,7 @@ function collectFormPayload(mode) {
     hourlyCost,
     totalSavings: calcTotalSavings(dailyHoursSaved, monthlyDays, hourlyCost),
     qualitativeEffect: document.getElementById("qualitativeEffect")?.value || "",
+    approvalPath: document.querySelector('input[name="approvalPath"]:checked')?.value || APPROVAL_PATH.MANAGER_ONLY,
     status: mode === "report" ? KAIZEN_STATUS.COMPLETED : KAIZEN_STATUS.SUBMITTED,
     uid: currentFirebaseUser?.uid || currentUserProfile?.uid || "",
     email: currentFirebaseUser?.email || currentUserProfile?.email || "",
@@ -673,6 +773,11 @@ async function saveKaizen(mode) {
     return;
   }
 
+  if (mode === "idea" && !canSubmitKaizen(currentUserProfile.role)) {
+    showToast(t("role.noSubmitPermission"), "error");
+    return;
+  }
+
   const payload = collectFormPayload(mode);
   if (!payload.kaizenId) {
     showToast(t("kaizen.requireId"), "error");
@@ -681,6 +786,16 @@ async function saveKaizen(mode) {
   if (!payload.improvedContent && mode === "idea") {
     showToast(t("kaizen.requireContent"), "error");
     return;
+  }
+
+  if (mode === "report" && editingKaizenDocId) {
+    const existing = kaizenListCache.find((item) => item.id === editingKaizenDocId);
+    const existingStatus = normalizeKaizenStatus(existing?.status);
+    if (existingStatus !== KAIZEN_STATUS.IN_PROGRESS) {
+      showToast(t("progress.reportNotAllowed"), "error");
+      return;
+    }
+    payload.status = KAIZEN_STATUS.COMPLETED;
   }
 
   isSaving = true;
@@ -697,10 +812,20 @@ async function saveKaizen(mode) {
       payload.afterImageUrl = await uploadKaizenImage(afterFile, payload.kaizenId, "after");
     }
 
-    await saveKaizenRecord(payload);
+    const savedId = await saveKaizenRecord(payload, editingKaizenDocId);
+    editingKaizenDocId = savedId;
     showToast(t("kaizen.saved", { id: payload.kaizenId }), "success");
     await loadKaizenListSafe();
-    setActiveTab("list");
+    if (mode === "report") {
+      if (selectedProgressKaizenId) {
+        renderProgressView(selectedProgressKaizenId);
+        setActiveTab("progress");
+      } else {
+        setActiveTab("list");
+      }
+    } else {
+      setActiveTab("list");
+    }
   } catch (error) {
     console.error(error);
     showToast(error.message || t("kaizen.saveFailed"), "error");
@@ -724,37 +849,53 @@ async function loadKaizenListSafe() {
 }
 
 function getFilteredKaizenList() {
-  if (!listStatusFilter || listStatusFilter === "all") return kaizenListCache;
-  return kaizenListCache.filter((item) => normalizeKaizenStatus(item.status) === listStatusFilter);
+  if (!currentUserProfile) return [];
+  return filterKaizenForListView(
+    kaizenListCache,
+    currentUserProfile,
+    listViewMode,
+    listStatusFilter
+  );
+}
+
+function getDashboardRecords() {
+  if (!currentUserProfile) return [];
+  return filterKaizenForDashboard(kaizenListCache, currentUserProfile);
 }
 
 function renderDashboardStats() {
   const wrap = document.getElementById("dashboardStats");
   if (!wrap) return;
 
+  const dashboardRecords = getDashboardRecords();
   const counts = Object.fromEntries(LIST_STATUS_FILTERS.map((s) => [s, 0]));
   let totalSavings = 0;
-  kaizenListCache.forEach((item) => {
+  dashboardRecords.forEach((item) => {
     const status = normalizeKaizenStatus(item.status);
-    if (counts[status] != null) counts[status] += 1;
+    if (status === KAIZEN_STATUS.L1_APPROVED) {
+      counts.submitted += 1;
+    } else if (counts[status] != null) {
+      counts[status] += 1;
+    }
     totalSavings += Number(item.totalSavings) || calcTotalSavings(item.dailyHoursSaved, item.monthlyDays, item.hourlyCost);
   });
 
   const cards = [
-    { key: "all", label: t("dashboard.total"), value: kaizenListCache.length, tab: "list", status: "all" },
+    { key: "all", label: t("dashboard.total"), value: dashboardRecords.length, tab: "list", status: "all", listMode: "mine" },
     ...LIST_STATUS_FILTERS.map((s) => ({
       key: s,
       label: t(`kaizen.status.${s}`),
       value: counts[s],
       tab: "list",
-      status: s
+      status: s,
+      listMode: "mine"
     })),
     { key: "savings", label: t("dashboard.savings"), value: `$${totalSavings.toFixed(2)}` }
   ];
 
   wrap.innerHTML = cards.map((card) => {
     const clickable = card.tab
-      ? `data-tab="${card.tab}" data-status="${card.status}"`
+      ? `data-tab="${card.tab}" data-status="${card.status}" data-list-mode="${card.listMode}"`
       : "";
     return `<button type="button" class="kz-dash-stat"${clickable}>
       <span>${escapeHtml(card.label)}</span>
@@ -763,7 +904,7 @@ function renderDashboardStats() {
   }).join("");
 
   wrap.querySelectorAll("[data-tab]").forEach((el) => {
-    el.addEventListener("click", () => setActiveTab(el.dataset.tab, el.dataset.status));
+    el.addEventListener("click", () => setActiveTab(el.dataset.tab, el.dataset.status, el.dataset.listMode || "mine"));
   });
 }
 
@@ -784,9 +925,11 @@ function renderKaizenTable() {
       : calcTotalSavings(item.dailyHoursSaved, item.monthlyDays, item.hourlyCost).toFixed(2);
     const classes = (item.classification || []).map((c) => `<span class="kz-chip">${escapeHtml(c)}</span>`).join(" ");
     const status = normalizeKaizenStatus(item.status);
-    const statusKey = `kaizen.status.${status}`;
+    const statusKey = status === KAIZEN_STATUS.L1_APPROVED
+      ? "kaizen.status.l1_approved"
+      : `kaizen.status.${status}`;
     return `
-      <tr>
+      <tr class="kz-row-clickable" data-kaizen-id="${escapeHtmlAttr(item.id)}" tabindex="0" role="button">
         <td class="kz-mono">${escapeHtml(item.kaizenId || item.id)}</td>
         <td>${escapeHtml(item.date || "-")}</td>
         <td>${escapeHtml(item.dept || item.department || "-")}</td>
@@ -798,9 +941,21 @@ function renderKaizenTable() {
       </tr>
     `;
   }).join("");
+
+  tbody.querySelectorAll(".kz-row-clickable").forEach((row) => {
+    const open = () => openProgressView(row.dataset.kaizenId);
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
+  });
 }
 
 function resetFormForNew() {
+  editingKaizenDocId = null;
   selectedClassification = [];
   renderClassificationButtons();
   const today = new Date().toISOString().split("T")[0];
@@ -829,6 +984,8 @@ function resetFormForNew() {
     document.getElementById("ideaDept").value = currentUserProfile.department || "";
     document.getElementById("reportDept").value = currentUserProfile.department || "";
   }
+  const managerPath = document.getElementById("approvalPathManager");
+  if (managerPath) managerPath.checked = true;
   updateMetricsUI();
 }
 
@@ -883,4 +1040,271 @@ function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = value == null ? "" : String(value);
   return div.innerHTML;
+}
+
+function escapeHtmlAttr(value) {
+  return escapeHtml(value).replace(/"/g, "&quot;");
+}
+
+function applyRoleBasedUI() {
+  const role = normalizeRole(currentUserProfile?.role);
+  const saveIdeaBtn = document.getElementById("saveIdeaBtn");
+  const createNewBtn = document.getElementById("createNewBtn");
+  const approvalNav = document.getElementById("navGroupApproval");
+  if (saveIdeaBtn) saveIdeaBtn.disabled = !canSubmitKaizen(role);
+  if (createNewBtn) createNewBtn.classList.toggle("hidden", !canSubmitKaizen(role));
+  if (approvalNav) approvalNav.classList.toggle("hidden", !canUseApprovalLists(role));
+}
+
+function openProgressView(docId) {
+  selectedProgressKaizenId = docId;
+  setActiveTab("progress");
+}
+
+async function renderProgressView(docId) {
+  const timeline = document.getElementById("progressTimeline");
+  const meta = document.getElementById("progressKaizenMeta");
+  if (!timeline) return;
+
+  let record = kaizenListCache.find((item) => item.id === docId);
+  if (!record) {
+    try {
+      record = await fetchKaizenById(docId);
+      if (record) {
+        kaizenListCache = [record, ...kaizenListCache.filter((item) => item.id !== docId)];
+      }
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+
+  if (!record) {
+    timeline.innerHTML = `<p class="empty-table">${escapeHtml(t("progress.notFound"))}</p>`;
+    return;
+  }
+
+  if (meta) {
+    const pathLabel = t(`kaizen.approvalPath.${normalizeApprovalPath(record.approvalPath) === APPROVAL_PATH.MANAGER_ONLY ? "managerOnly" : "topManager"}`);
+    meta.textContent = `${record.kaizenId || record.id} · ${record.improvedContent || "-"} · ${pathLabel}`;
+  }
+
+  const steps = getWorkflowStepsForRecord(record);
+  const currentStep = getWorkflowStepIndex(record.status, record.approvalPath);
+  const role = normalizeRole(currentUserProfile?.role);
+  const isOwner = record.uid === currentUserProfile?.uid;
+  const status = normalizeKaizenStatus(record.status);
+
+  timeline.innerHTML = steps.map((step, index) => {
+    const stepNo = index + 1;
+    const state = stepNo < currentStep ? "done" : stepNo === currentStep ? "current" : "pending";
+    const actionHtml = renderProgressStepAction(step.key, record, { role, isOwner, status, state });
+    const detailHtml = renderProgressStepDetail(step.key, record);
+    return `
+      <article class="kz-progress-step ${state}">
+        <div class="kz-progress-marker">${stepNo}</div>
+        <div class="kz-progress-body">
+          <div class="kz-progress-step-head">
+            <h3 data-i18n="progress.step.${step.key}">${t(`progress.step.${step.key}`)}</h3>
+            ${actionHtml}
+          </div>
+          ${detailHtml}
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  applyI18n(timeline);
+  bindProgressActions(record);
+}
+
+function renderProgressStepDetail(stepKey, record) {
+  if (stepKey === "l1_approval" && record.l1ApprovedByName) {
+    return `<p class="kz-progress-detail">${escapeHtml(t("progress.approvedBy", { name: record.l1ApprovedByName }))}</p>`;
+  }
+  if (stepKey === "l2_approval" && record.l2ApprovedByName) {
+    return `<p class="kz-progress-detail">${escapeHtml(t("progress.approvedBy", { name: record.l2ApprovedByName }))}</p>`;
+  }
+  if (stepKey === "completed" && normalizeKaizenStatus(record.status) === KAIZEN_STATUS.COMPLETED) {
+    return `<p class="kz-progress-detail">${escapeHtml(t("progress.completedAt", { savings: Number(record.totalSavings || 0).toFixed(2) }))}</p>`;
+  }
+  return "";
+}
+
+function renderProgressStepAction(stepKey, record, ctx) {
+  const { role, isOwner, status, state } = ctx;
+
+  if (stepKey === "proposal") {
+    return `<button type="button" class="kz-btn-purple kz-progress-action" data-action="view-idea">${t("progress.viewIdea")}</button>`;
+  }
+
+  if (stepKey === "l1_approval" &&
+      status === KAIZEN_STATUS.SUBMITTED &&
+      canApproveL1(role, currentUserProfile, record)) {
+    return `<button type="button" class="primary-btn kz-progress-action" data-action="approve-l1">${t("progress.approveL1")}</button>`;
+  }
+
+  if (stepKey === "l2_approval" &&
+      status === KAIZEN_STATUS.L1_APPROVED &&
+      normalizeApprovalPath(record.approvalPath) === APPROVAL_PATH.TOP_MANAGER &&
+      canApproveL2(role)) {
+    return `<button type="button" class="primary-btn kz-progress-action" data-action="approve-l2">${t("progress.approveL2")}</button>`;
+  }
+
+  if (stepKey === "in_progress") {
+    if ((status === KAIZEN_STATUS.APPROVED || status === KAIZEN_STATUS.IN_PROGRESS) && isOwner) {
+      const label = status === KAIZEN_STATUS.APPROVED ? t("progress.startAndReport") : t("progress.progressReport");
+      return `<button type="button" class="kz-btn-purple kz-progress-action" data-action="open-report">${label}</button>`;
+    }
+  }
+
+  if (stepKey === "completed" && status === KAIZEN_STATUS.COMPLETED) {
+    return `<button type="button" class="kz-btn-purple kz-progress-action" data-action="view-report">${t("progress.viewReport")}</button>`;
+  }
+
+  if (state === "done") {
+    return `<span class="kz-progress-done-badge">${t("progress.stepDone")}</span>`;
+  }
+
+  return `<span class="kz-progress-waiting">${t("progress.stepWaiting")}</span>`;
+}
+
+function bindProgressActions(record) {
+  document.querySelectorAll(".kz-progress-action").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.action;
+      try {
+        if (action === "view-idea") {
+          loadKaizenIntoForms(record, "idea");
+          setActiveTab("idea");
+          return;
+        }
+        if (action === "view-report") {
+          loadKaizenIntoForms(record, "report");
+          setActiveTab("report");
+          return;
+        }
+        if (action === "open-report") {
+          await handleOpenProgressReport(record);
+          return;
+        }
+        if (action === "approve-l1") {
+          await handleApproveL1(record);
+          return;
+        }
+        if (action === "approve-l2") {
+          await handleApproveL2(record);
+        }
+      } catch (error) {
+        console.error(error);
+        showToast(error.message || t("progress.actionFailed"), "error");
+      }
+    });
+  });
+}
+
+async function handleApproveL1(record) {
+  if (!canApproveL1(currentUserProfile?.role, currentUserProfile, record)) {
+    showToast(t("progress.approveDeptDenied"), "error");
+    return;
+  }
+  if (!confirm(t("progress.confirmApproveL1", { id: record.kaizenId || record.id }))) return;
+  showPageLoader(true, t("common.loading"));
+  try {
+    await approveKaizenL1(record.id, currentUserProfile, record);
+    showToast(t("progress.approvedL1Success"), "success");
+    await loadKaizenListSafe();
+    renderProgressView(record.id);
+  } finally {
+    showPageLoader(false);
+  }
+}
+
+async function handleApproveL2(record) {
+  if (!confirm(t("progress.confirmApproveL2", { id: record.kaizenId || record.id }))) return;
+  showPageLoader(true, t("common.loading"));
+  try {
+    await approveKaizenL2(record.id, currentUserProfile);
+    showToast(t("progress.approvedL2Success"), "success");
+    await loadKaizenListSafe();
+    renderProgressView(record.id);
+  } finally {
+    showPageLoader(false);
+  }
+}
+
+async function handleOpenProgressReport(record) {
+  const status = normalizeKaizenStatus(record.status);
+  if (status === KAIZEN_STATUS.APPROVED) {
+    showPageLoader(true, t("common.loading"));
+    try {
+      await startKaizenProgress(record.id);
+      await loadKaizenListSafe();
+      const updated = kaizenListCache.find((item) => item.id === record.id) || record;
+      loadKaizenIntoForms({ ...updated, status: KAIZEN_STATUS.IN_PROGRESS }, "report");
+      setActiveTab("report");
+    } finally {
+      showPageLoader(false);
+    }
+    return;
+  }
+
+  loadKaizenIntoForms(record, "report");
+  setActiveTab("report");
+}
+
+function loadKaizenIntoForms(record, mode = "idea") {
+  editingKaizenDocId = record.id;
+  selectedClassification = Array.isArray(record.classification) ? [...record.classification] : [];
+  renderClassificationButtons();
+
+  const setValue = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value ?? "";
+  };
+
+  setValue("ideaKaizenId", record.kaizenId);
+  setValue("ideaDate", record.date);
+  setValue("ideaDept", record.dept || record.department);
+  setValue("ideaProposer", record.proposer);
+  setValue("ideaProposer2", record.proposer);
+  setValue("ideaApproved", record.approved);
+  setValue("ideaChecked", record.checked);
+  setValue("ideaImprovedContent", record.improvedContent);
+  setValue("ideaProblemDesc", record.problemDesc);
+  setValue("ideaImprovementPlan", record.improvementPlan);
+  setValue("ideaImprovementActions", record.improvementActions);
+  setValue("ideaRiskIdentification", record.riskIdentification);
+  setValue("ideaAfterDescription", record.afterDescriptionIdea || record.afterDescription);
+
+  setValue("reportKaizenId", record.kaizenId);
+  setValue("reportDate", record.date);
+  setValue("reportDept", record.dept || record.department);
+  setValue("reportSopNo", record.sopNo);
+  setValue("reportProductName", record.productName);
+  setValue("reportProcess", record.process);
+  setValue("reportTarget", record.target);
+  setValue("reportTargetDetail", record.targetDetail);
+  setValue("reportBeforeDescription", record.beforeDescription);
+  setValue("reportAfterDescription", record.afterDescription);
+  setValue("reportMaterialsAndCost", record.materialsAndCost);
+  setValue("beforeWorkHour", record.beforeWorkHour ?? 0);
+  setValue("afterWorkHour", record.afterWorkHour ?? 0);
+  setValue("beforeNearMiss", record.beforeNearMiss ?? 0);
+  setValue("afterNearMiss", record.afterNearMiss ?? 0);
+  setValue("dailyHoursSaved", record.dailyHoursSaved ?? 0);
+  setValue("monthlyDays", record.monthlyDays ?? 22);
+  setValue("hourlyCost", record.hourlyCost ?? 5);
+  setValue("qualitativeEffect", record.qualitativeEffect);
+
+  const path = normalizeApprovalPath(record.approvalPath);
+  const managerRadio = document.getElementById("approvalPathManager");
+  const topRadio = document.getElementById("approvalPathTopManager");
+  if (managerRadio) managerRadio.checked = path === APPROVAL_PATH.MANAGER_ONLY;
+  if (topRadio) topRadio.checked = path === APPROVAL_PATH.TOP_MANAGER;
+
+  updateMetricsUI();
+
+  if (mode === "report") {
+    syncIdeaToReportFields();
+  }
 }

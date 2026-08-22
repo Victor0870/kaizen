@@ -34,33 +34,102 @@ service cloud.firestore {
              userRole() == "admin";
     }
 
+    function isManager() {
+      return isActiveUser() &&
+             userRole() in ["manager", "admin"];
+    }
+
+    function isTopManager() {
+      return isActiveUser() &&
+             userRole() in ["top_manager", "admin"];
+    }
+
+    function validAppRole(role) {
+      return role is string &&
+             role.lower() in ["user", "manager", "top_manager", "admin"];
+    }
+
     function validStatus(status) {
       return status is string &&
              status.lower() in ["pending", "inactive", "active", "locked"];
     }
 
+    function validKaizenStatus(status) {
+      return status is string &&
+             status.lower() in [
+               "submitted", "l1_approved", "approved", "in_progress", "completed"
+             ];
+    }
+
+    function catalogExists() {
+      return exists(/databases/$(database)/documents/settings/catalog);
+    }
+
+    function catalogData() {
+      return get(/databases/$(database)/documents/settings/catalog).data;
+    }
+
+    function defaultDepartments() {
+      return [
+        "GAHR", "PROD", "QA", "QC", "WH", "ENG",
+        "PUR", "FIN", "IT", "SALES", "OTHER"
+      ];
+    }
+
+    function defaultRanks() {
+      return [
+        "Operator", "Junior", "Staff", "Supervisor",
+        "AM", "MG", "SMG", "DGM", "GM", "DGD", "GD"
+      ];
+    }
+
+    function validDepartment(department) {
+      return department is string &&
+             (
+               (catalogExists() && department in catalogData().departments) ||
+               (!catalogExists() && department in defaultDepartments())
+             );
+    }
+
     function validCapBac(capBac) {
       return capBac is string &&
-             capBac in [
-               "Operator", "Junior", "Staff", "Supervisor",
-               "AM", "MG", "SMG", "DGM", "GM", "DGD", "GD"
-             ];
+             (
+               (catalogExists() && capBac in catalogData().ranks) ||
+               (!catalogExists() && capBac in defaultRanks())
+             );
+    }
+
+    function validCatalogLists(departments, ranks) {
+      return departments is list &&
+             ranks is list &&
+             departments.size() > 0 &&
+             ranks.size() > 0 &&
+             departments.size() <= 100 &&
+             ranks.size() <= 100;
     }
 
     function adminUserUpdateAllowed(userId) {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       let targetRole = resource.data.role.lower();
       let statusChanged = changed.hasAny(["status"]);
-      let allowedFields = changed.hasOnly(["status", "updatedAt"]);
+      let roleChanged = changed.hasAny(["role"]);
+      let allowedFields = changed.hasOnly(["status", "updatedAt"]) ||
+                          changed.hasOnly(["role", "updatedAt"]) ||
+                          changed.hasOnly(["status", "role", "updatedAt"]);
 
       return isAdmin() &&
              allowedFields &&
              (targetRole != "admin" || request.auth.uid == userId) &&
              (!statusChanged || validStatus(request.resource.data.status)) &&
+             (!roleChanged || validAppRole(request.resource.data.role)) &&
              !(targetRole == "admin" &&
                request.auth.uid != userId &&
                statusChanged &&
-               request.resource.data.status.lower() == "locked");
+               request.resource.data.status.lower() == "locked") &&
+             !(targetRole == "admin" &&
+               request.auth.uid != userId &&
+               roleChanged &&
+               request.resource.data.role.lower() != "admin");
     }
 
     function selfPasswordChangedAtUpdateAllowed(userId) {
@@ -71,6 +140,80 @@ service cloud.firestore {
              isActiveUser() &&
              changed.hasOnly(["passwordChangedAt", "updatedAt"]) &&
              request.resource.data.passwordChangedAt is timestamp;
+    }
+
+    function kaizenOwnerStartProgressAllowed() {
+      return isActiveUser() &&
+             resource.data.uid == request.auth.uid &&
+             resource.data.status.lower() == "approved" &&
+             request.resource.data.status.lower() == "in_progress" &&
+             request.resource.data.uid == resource.data.uid &&
+             request.resource.data.kaizenId == resource.data.kaizenId;
+    }
+
+    function kaizenOwnerCompleteAllowed() {
+      return isActiveUser() &&
+             resource.data.uid == request.auth.uid &&
+             resource.data.status.lower() == "in_progress" &&
+             request.resource.data.status.lower() == "completed" &&
+             request.resource.data.uid == resource.data.uid &&
+             request.resource.data.kaizenId == resource.data.kaizenId;
+    }
+
+    function kaizenOwnerEditSubmittedAllowed() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+
+      return isActiveUser() &&
+             resource.data.uid == request.auth.uid &&
+             resource.data.status.lower() == "submitted" &&
+             request.resource.data.status.lower() == "submitted" &&
+             request.resource.data.uid == resource.data.uid &&
+             request.resource.data.kaizenId == resource.data.kaizenId &&
+             !changed.hasAny(["status", "l1ApprovedBy", "l1ApprovedByName", "l1ApprovedAt",
+                              "l2ApprovedBy", "l2ApprovedByName", "l2ApprovedAt"]);
+    }
+
+    function recordDept(data) {
+      return data.dept is string ? data.dept : data.department;
+    }
+
+    function validApprovalPath(path) {
+      return path is string &&
+             path in ["manager_only", "top_manager"];
+    }
+
+    function managerDeptMatches(data) {
+      return isManager() &&
+             recordDept(data) == currentUserDoc().data.department;
+    }
+
+    function kaizenManagerL1Allowed() {
+      let path = resource.data.approvalPath;
+      let nextStatus = request.resource.data.status.lower();
+
+      return isManager() &&
+             managerDeptMatches(resource.data) &&
+             resource.data.status.lower() == "submitted" &&
+             request.resource.data.l1ApprovedBy == request.auth.uid &&
+             request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(["status", "l1ApprovedBy", "l1ApprovedByName", "l1ApprovedAt", "updatedAt"]) &&
+             (
+               (path == "manager_only" && nextStatus == "approved") ||
+               (path == "top_manager" && nextStatus == "l1_approved") ||
+               (path == null && nextStatus == "l1_approved")
+             );
+    }
+
+    function kaizenTopManagerL2Allowed() {
+      let path = resource.data.approvalPath;
+
+      return isTopManager() &&
+             resource.data.status.lower() == "l1_approved" &&
+             request.resource.data.status.lower() == "approved" &&
+             (path == "top_manager" || path == null) &&
+             request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(["status", "l2ApprovedBy", "l2ApprovedByName", "l2ApprovedAt", "updatedAt"]) &&
+             request.resource.data.l2ApprovedBy == request.auth.uid;
     }
 
     match /users/{userId} {
@@ -86,6 +229,7 @@ service cloud.firestore {
                     request.resource.data.taiKhoan is string &&
                     request.resource.data.hoTen is string &&
                     request.resource.data.department is string &&
+                    validDepartment(request.resource.data.department) &&
                     validCapBac(request.resource.data.capBac);
 
       allow update: if adminUserUpdateAllowed(userId) ||
@@ -93,6 +237,18 @@ service cloud.firestore {
 
       allow delete: if isAdmin() &&
                     resource.data.role.lower() != "admin";
+    }
+
+    match /settings/catalog {
+      allow read: if true;
+
+      allow create, update: if isAdmin() &&
+                            validCatalogLists(
+                              request.resource.data.departments,
+                              request.resource.data.ranks
+                            );
+
+      allow delete: if false;
     }
 
     match /audit_logs/{logId} {
@@ -111,9 +267,17 @@ service cloud.firestore {
                     request.resource.data.uid == request.auth.uid &&
                     request.resource.data.email == request.auth.token.email &&
                     request.resource.data.kaizenId is string &&
-                    request.resource.data.status is string;
+                    request.resource.data.status == "submitted" &&
+                    validApprovalPath(request.resource.data.approvalPath);
 
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() ||
+                    kaizenOwnerStartProgressAllowed() ||
+                    kaizenOwnerCompleteAllowed() ||
+                    kaizenOwnerEditSubmittedAllowed() ||
+                    kaizenManagerL1Allowed() ||
+                    kaizenTopManagerL2Allowed();
+
+      allow delete: if isAdmin();
     }
   }
 }

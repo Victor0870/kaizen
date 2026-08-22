@@ -197,9 +197,152 @@
 }
 
 .status-badge.status-submitted { background: #f3e2a3; color: #5c470c; }
+.status-badge.status-l1_approved { background: #fde68a; color: #6b4f0a; }
 .status-badge.status-approved { background: #efe4d2; color: #3d3830; }
 .status-badge.status-in_progress { background: #fef3c7; color: #7a4a08; }
 .status-badge.status-completed { background: #e8eef2; color: #334155; }
+
+.kz-row-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.kz-row-clickable:hover,
+.kz-row-clickable:focus-visible {
+  background: rgba(201, 162, 39, 0.08);
+  outline: none;
+}
+
+.kz-progress-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.kz-progress-head-meta h2 {
+  margin: 0 0 6px;
+}
+
+.kz-progress-head-meta p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.kz-progress-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.kz-progress-step {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.kz-progress-marker {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  border: 2px solid rgba(201, 162, 39, 0.25);
+  background: #fff;
+  color: var(--muted);
+}
+
+.kz-progress-step.done .kz-progress-marker {
+  background: linear-gradient(135deg, #fffaf3, #e8c547);
+  border-color: #c9a227;
+  color: #1c1915;
+}
+
+.kz-progress-step.current .kz-progress-marker {
+  background: #fff;
+  border-color: #c9a227;
+  box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.16);
+  color: #1c1915;
+}
+
+.kz-progress-body {
+  border: 1px solid rgba(201, 162, 39, 0.18);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.kz-progress-step.current .kz-progress-body {
+  border-color: rgba(201, 162, 39, 0.45);
+  box-shadow: 0 8px 24px rgba(26, 22, 18, 0.06);
+}
+
+.kz-progress-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kz-progress-step-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.kz-progress-detail {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.kz-progress-done-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #166534;
+  background: #dcfce7;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.kz-progress-waiting {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.kz-progress-action {
+  white-space: nowrap;
+}
+
+.kz-approval-path {
+  margin: 0 0 1rem;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 39, 0.18);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.kz-approval-path-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.kz-approval-path-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.kz-approval-path-option input {
+  accent-color: #c9a227;
+}
 
 .account-nav-card {
   width: 100%;

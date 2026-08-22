@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css?v=20260822h">
+  <link rel="stylesheet" href="./style.css?v=20260822i">
 </head>
 <body class="admin-page" data-page-title-key="page.admin">
   <div id="pageLoader" class="page-loader hidden">
@@ -29,7 +29,8 @@
 
       <nav class="admin-sidebar-nav">
         <p class="admin-nav-label" data-i18n="nav.section.functions">Chức năng</p>
-        <a href="#usersSection" class="admin-nav-item active" data-i18n="nav.adminUsers">Quản lý người dùng</a>
+        <a href="#usersSection" class="admin-nav-item active" data-admin-section="usersSection" data-i18n="nav.adminUsers">Quản lý người dùng</a>
+        <a href="#catalogSection" class="admin-nav-item" data-admin-section="catalogSection" data-i18n="nav.adminCatalog">Bộ phận &amp; chức danh</a>
         <p class="admin-nav-label" data-i18n="nav.section.quickLinks">Liên kết nhanh</p>
         <a href="./index.html" class="admin-nav-item" data-i18n="nav.home">Trang Kaizen</a>
       </nav>
@@ -93,7 +94,7 @@
         </div>
       </header>
 
-      <section id="usersSection" class="admin-section">
+      <section id="usersSection" class="admin-section admin-panel-section">
         <div class="admin-section-header">
           <div class="panel-header">
             <h2 data-i18n="admin.users.title">Danh sách người dùng đăng ký</h2>
@@ -120,6 +121,7 @@
                 <th data-i18n="admin.users.colName">Họ và tên</th>
                 <th data-i18n="common.department">Bộ phận</th>
                 <th data-i18n="common.capBac">Cấp bậc</th>
+                <th data-i18n="common.role">Vai trò</th>
                 <th data-i18n="common.status">Trạng thái</th>
                 <th data-i18n="admin.users.colRegistered">Ngày đăng ký</th>
                 <th data-i18n="common.actions">Thao tác</th>
@@ -127,16 +129,49 @@
             </thead>
             <tbody id="userTableBody">
               <tr>
-                <td colspan="7" class="empty-table">Đang tải cơ sở dữ liệu...</td>
+                <td colspan="8" class="empty-table">Đang tải cơ sở dữ liệu...</td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="catalogSection" class="admin-section admin-panel-section hidden">
+        <div class="admin-section-header">
+          <div class="panel-header">
+            <h2 data-i18n="admin.catalog.title">Quản lý bộ phận &amp; chức danh</h2>
+            <p class="admin-section-desc" data-i18n="admin.catalog.subtitle">Thêm hoặc xóa mục trong danh sách. Người đăng ký sẽ chọn từ danh sách này.</p>
+          </div>
+        </div>
+
+        <div class="admin-catalog-grid">
+          <div class="admin-catalog-panel">
+            <h3 data-i18n="admin.catalog.departments">Danh sách bộ phận</h3>
+            <div class="admin-catalog-add">
+              <input type="text" id="newDepartmentInput" class="admin-search-input" data-i18n-placeholder="admin.catalog.addDepartmentPlaceholder" placeholder="Nhập tên bộ phận mới..." maxlength="64">
+              <button type="button" id="addDepartmentBtn" class="primary-btn admin-catalog-add-btn" data-i18n="admin.catalog.add">Thêm</button>
+            </div>
+            <ul id="departmentList" class="admin-catalog-list">
+              <li class="admin-catalog-empty" data-i18n="common.loadingData">Đang tải dữ liệu...</li>
+            </ul>
+          </div>
+
+          <div class="admin-catalog-panel">
+            <h3 data-i18n="admin.catalog.ranks">Danh sách chức danh</h3>
+            <div class="admin-catalog-add">
+              <input type="text" id="newRankInput" class="admin-search-input" data-i18n-placeholder="admin.catalog.addRankPlaceholder" placeholder="Nhập chức danh mới..." maxlength="64">
+              <button type="button" id="addRankBtn" class="primary-btn admin-catalog-add-btn" data-i18n="admin.catalog.add">Thêm</button>
+            </div>
+            <ul id="rankList" class="admin-catalog-list">
+              <li class="admin-catalog-empty" data-i18n="common.loadingData">Đang tải dữ liệu...</li>
+            </ul>
+          </div>
         </div>
       </section>
     </main>
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./admin.js?v=20260821a"></script>
+  <script type="module" src="./admin.js?v=20260822b"></script>
 </body>
 </html>

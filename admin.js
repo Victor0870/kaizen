@@ -11,10 +11,16 @@ import {
   addDoc,
   serverTimestamp,
   collection,
-  getDocs
+  getDocs,
+  setDoc
 } from "./firebase-config.js";
 import { initI18n, t, onLanguageChange, applyI18n, getLang } from "./i18n.js";
 import { bindPasswordExpiry } from "./password-expiry.js";
+import {
+  ensureCatalogDefaults,
+  saveCatalog
+} from "./catalog-service.js";
+import { USER_ROLES, normalizeRole } from "./constants.js";
 
 let users = [];
 let userFilter = "all";
@@ -22,6 +28,9 @@ let searchQuery = "";
 let toastTimer = null;
 let authReady = false;
 let isLoadingAdminData = false;
+let catalogDepartments = [];
+let catalogRanks = [];
+let activeAdminSection = "usersSection";
 
 document.addEventListener("DOMContentLoaded", initAdminPage);
 
@@ -38,6 +47,7 @@ async function initAdminPage() {
     applyI18n();
     setCurrentDate();
     renderUserTable();
+    renderCatalogLists();
   });
 
   await authPersistenceReady;
@@ -60,6 +70,41 @@ function bindEvents() {
     searchQuery = e.target.value.trim().toLowerCase();
     renderUserTable();
   });
+
+  document.querySelectorAll("[data-admin-section]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      showAdminSection(link.dataset.adminSection);
+    });
+  });
+
+  document.getElementById("addDepartmentBtn")?.addEventListener("click", () => addCatalogItem("departments"));
+  document.getElementById("addRankBtn")?.addEventListener("click", () => addCatalogItem("ranks"));
+  document.getElementById("newDepartmentInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCatalogItem("departments");
+    }
+  });
+  document.getElementById("newRankInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCatalogItem("ranks");
+    }
+  });
+}
+
+function showAdminSection(sectionId) {
+  activeAdminSection = sectionId;
+  document.querySelectorAll(".admin-panel-section").forEach((section) => {
+    section.classList.toggle("hidden", section.id !== sectionId);
+  });
+  document.querySelectorAll("[data-admin-section]").forEach((link) => {
+    link.classList.toggle("active", link.dataset.adminSection === sectionId);
+  });
+  if (sectionId === "catalogSection") {
+    renderCatalogLists();
+  }
 }
 
 function observeAuth() {
@@ -105,7 +150,8 @@ function observeAuth() {
       }
 
       updateAdminSidebar(user, profile);
-      await loadUsers(false);
+      await Promise.all([loadUsers(false), loadCatalog(false)]);
+      showAdminSection(location.hash === "#catalogSection" ? "catalogSection" : "usersSection");
     } catch (error) {
       console.error(error);
       const message = getFirestoreErrorMessage(error);
@@ -121,7 +167,7 @@ function observeAuth() {
 function showTableError(message) {
   const tbody = document.getElementById("userTableBody");
   if (!tbody) return;
-  tbody.innerHTML = `<tr><td colspan="7" class="empty-table">${escapeHtml(message)}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="empty-table">${escapeHtml(message)}</td></tr>`;
 }
 
 function getFirestoreErrorMessage(error) {
@@ -207,7 +253,7 @@ function renderUserTable() {
   if (!list.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-table">${
+        <td colspan="8" class="empty-table">${
           userFilter === "pending"
             ? t("admin.noPendingUsers")
             : searchQuery
@@ -234,6 +280,7 @@ function renderUserRow(u) {
       <td>${escapeHtml(u.hoTen || "-")}</td>
       <td>${escapeHtml(u.department || "-")}</td>
       <td>${escapeHtml(u.capBac || "-")}</td>
+      <td>${renderRoleSelect(u)}</td>
       <td><span class="status-badge status-${status}">${getStatusLabel(status)}</span></td>
       <td>${formatCreatedAt(u.createdAt)}</td>
       <td>${renderActionButtons(u.id, status)}</td>
@@ -241,7 +288,18 @@ function renderUserRow(u) {
   `;
 }
 
-function renderActionButtons(userId, status) {
+function renderRoleSelect(u) {
+  const currentRole = normalizeRole(u.role);
+  const disabled = u.role === "admin" && u.id !== auth.currentUser?.uid;
+  const options = USER_ROLES.map((role) =>
+    `<option value="${role}"${role === currentRole ? " selected" : ""}>${t(`role.${role}`)}</option>`
+  ).join("");
+  return `
+    <select class="admin-role-select" data-id="${u.id}"${disabled ? " disabled" : ""} aria-label="${escapeHtml(t("admin.users.changeRole"))}">
+      ${options}
+    </select>
+  `;
+}
   if (status === "pending") {
     return `
       <div class="action-buttons">
@@ -266,6 +324,9 @@ function renderActionButtons(userId, status) {
 }
 
 function setupUserTableEvents() {
+  document.querySelectorAll(".admin-role-select").forEach((select) => {
+    select.addEventListener("change", () => handleRoleChange(select.dataset.id, select.value, select));
+  });
   document.querySelectorAll(".btn-approve").forEach((button) => {
     button.addEventListener("click", () => handleStatusChange(button.dataset.id, "approve"));
   });
@@ -278,6 +339,65 @@ function setupUserTableEvents() {
   document.querySelectorAll(".btn-unlock").forEach((button) => {
     button.addEventListener("click", () => handleStatusChange(button.dataset.id, "unlock"));
   });
+}
+
+async function handleRoleChange(userId, newRole, selectEl) {
+  const user = users.find((u) => u.id === userId);
+  const previousRole = normalizeRole(user?.role);
+  const nextRole = normalizeRole(newRole);
+
+  if (!user || previousRole === nextRole) return;
+
+  if (user.role === "admin" && userId !== auth.currentUser?.uid) {
+    showToast(t("security.cannotModifyOtherAdmin"), "error");
+    if (selectEl) selectEl.value = previousRole;
+    return;
+  }
+
+  if (!confirm(t("admin.users.confirmRoleChange", {
+    name: user.hoTen || user.email || t("common.account"),
+    role: t(`role.${nextRole}`)
+  }))) {
+    if (selectEl) selectEl.value = previousRole;
+    return;
+  }
+
+  try {
+    await updateDoc(doc(db, "users", userId), {
+      role: nextRole,
+      updatedAt: serverTimestamp()
+    });
+    showToast(t("admin.users.roleUpdated"), "success");
+    await loadUsers();
+  } catch (error) {
+    console.error(error);
+    if (selectEl) selectEl.value = previousRole;
+    showToast(error.message || t("admin.users.roleUpdateFailed"), "error");
+  }
+}
+
+function renderActionButtons(userId, status) {
+  if (status === "pending") {
+    return `
+      <div class="action-buttons">
+        <button type="button" class="btn-action approve btn-approve" data-id="${userId}">${t("common.approve")}</button>
+        <button type="button" class="btn-action reject btn-reject" data-id="${userId}">${t("common.reject")}</button>
+      </div>
+    `;
+  }
+  if (status === "active") {
+    return `
+      <div class="action-buttons">
+        <span class="admin-reviewed-note">${t("admin.statusActive")}</span>
+        <button type="button" class="btn-action lock btn-lock" data-id="${userId}">${t("common.lock")}</button>
+      </div>
+    `;
+  }
+  return `
+    <div class="action-buttons">
+      <button type="button" class="btn-action unlock btn-unlock" data-id="${userId}">${t("common.unlock")}</button>
+    </div>
+  `;
 }
 
 async function handleStatusChange(userId, action) {
@@ -422,4 +542,135 @@ function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = value == null ? "" : String(value);
   return div.innerHTML;
+}
+
+async function loadCatalog(showLoader = true) {
+  if (showLoader) showPageLoader(true, t("admin.catalog.loading"));
+  try {
+    const result = await ensureCatalogDefaults(db, doc, getDoc, setDoc, serverTimestamp);
+    catalogDepartments = [...result.departments];
+    catalogRanks = [...result.ranks];
+    if (result.seeded) {
+      showToast(t("admin.catalog.seededDefaults"), "info");
+    }
+    renderCatalogLists();
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || t("admin.catalog.loadFailed"), "error");
+    throw error;
+  } finally {
+    if (showLoader) showPageLoader(false);
+  }
+}
+
+function renderCatalogLists() {
+  renderCatalogList("departmentList", catalogDepartments, "departments");
+  renderCatalogList("rankList", catalogRanks, "ranks");
+}
+
+function renderCatalogList(listId, items, type) {
+  const listEl = document.getElementById(listId);
+  if (!listEl) return;
+
+  if (!items.length) {
+    listEl.innerHTML = `<li class="admin-catalog-empty">${escapeHtml(t("admin.catalog.empty"))}</li>`;
+    return;
+  }
+
+  listEl.innerHTML = items.map((item, index) => `
+    <li class="admin-catalog-item">
+      <span>${escapeHtml(item)}</span>
+      <button type="button" class="btn-action reject admin-catalog-remove" data-type="${type}" data-index="${index}" aria-label="${escapeHtml(t("admin.catalog.remove"))}">×</button>
+    </li>
+  `).join("");
+
+  listEl.querySelectorAll(".admin-catalog-remove").forEach((button) => {
+    button.addEventListener("click", () => removeCatalogItem(button.dataset.type, Number(button.dataset.index)));
+  });
+}
+
+async function addCatalogItem(type) {
+  const inputId = type === "departments" ? "newDepartmentInput" : "newRankInput";
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  const value = input.value.trim();
+  if (!value) {
+    showToast(t("admin.catalog.enterName"), "error");
+    return;
+  }
+
+  const targetList = type === "departments" ? catalogDepartments : catalogRanks;
+  const exists = targetList.some((item) => item.toLowerCase() === value.toLowerCase());
+  if (exists) {
+    showToast(t("admin.catalog.duplicate"), "error");
+    return;
+  }
+
+  const nextDepartments = type === "departments" ? [...targetList, value] : [...catalogDepartments];
+  const nextRanks = type === "ranks" ? [...targetList, value] : [...catalogRanks];
+
+  try {
+    showPageLoader(true, t("admin.catalog.saving"));
+    const saved = await saveCatalog(
+      db,
+      doc,
+      setDoc,
+      serverTimestamp,
+      { departments: nextDepartments, ranks: nextRanks },
+      auth.currentUser?.uid || ""
+    );
+    catalogDepartments = saved.departments;
+    catalogRanks = saved.ranks;
+    input.value = "";
+    renderCatalogLists();
+    showToast(t("admin.catalog.added"), "success");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message === "catalog.emptyNotAllowed" ? t("admin.catalog.cannotEmpty") : (error.message || t("admin.catalog.saveFailed")), "error");
+  } finally {
+    showPageLoader(false);
+  }
+}
+
+async function removeCatalogItem(type, index) {
+  const targetList = type === "departments" ? catalogDepartments : catalogRanks;
+  const item = targetList[index];
+  if (!item) return;
+
+  const confirmKey = type === "departments" ? "admin.catalog.confirmRemoveDepartment" : "admin.catalog.confirmRemoveRank";
+  if (!confirm(t(confirmKey, { name: item }))) return;
+
+  const nextDepartments = type === "departments"
+    ? targetList.filter((_, i) => i !== index)
+    : [...catalogDepartments];
+  const nextRanks = type === "ranks"
+    ? targetList.filter((_, i) => i !== index)
+    : [...catalogRanks];
+
+  if (!nextDepartments.length || !nextRanks.length) {
+    showToast(t("admin.catalog.cannotEmpty"), "error");
+    return;
+  }
+
+  try {
+    showPageLoader(true, t("admin.catalog.saving"));
+    const saved = await saveCatalog(
+      db,
+      doc,
+      setDoc,
+      serverTimestamp,
+      { departments: nextDepartments, ranks: nextRanks },
+      auth.currentUser?.uid || ""
+    );
+    catalogDepartments = saved.departments;
+    catalogRanks = saved.ranks;
+    renderCatalogLists();
+    showToast(t("admin.catalog.removed"), "success");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || t("admin.catalog.saveFailed"), "error");
+  } finally {
+    showPageLoader(false);
+  }
 }

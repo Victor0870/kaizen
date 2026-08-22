@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css?v=20260822h">
-  <link rel="stylesheet" href="./kaizen.css?v=20260822h">
+  <link rel="stylesheet" href="./kaizen.css?v=20260822k">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -122,13 +122,19 @@
           <button type="button" class="admin-nav-item" data-tab="dashboard" data-i18n="nav.dashboard">Bảng thống kê</button>
 
           <div class="nav-group" id="navGroupList">
-            <button type="button" class="admin-nav-item" data-tab="list" data-i18n="nav.list">Danh sách ý tưởng</button>
+            <button type="button" class="admin-nav-item" data-tab="list" data-list-mode="mine" data-i18n="nav.list">Danh sách ý tưởng</button>
             <div class="nav-sub">
-              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="submitted" data-i18n="kaizen.status.submitted">Đã gửi</button>
-              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="approved" data-i18n="kaizen.status.approved">Đã được phê duyệt</button>
-              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="in_progress" data-i18n="kaizen.status.in_progress">Đang tiến hành</button>
-              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-status="completed" data-i18n="kaizen.status.completed">Đã hoàn thành</button>
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-list-mode="mine" data-status="submitted" data-i18n="kaizen.status.submitted">Đã gửi</button>
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-list-mode="mine" data-status="approved" data-i18n="kaizen.status.approved">Đã được phê duyệt</button>
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-list-mode="mine" data-status="in_progress" data-i18n="kaizen.status.in_progress">Đang tiến hành</button>
+              <button type="button" class="admin-nav-item nav-sub-item" data-tab="list" data-list-mode="mine" data-status="completed" data-i18n="kaizen.status.completed">Đã hoàn thành</button>
             </div>
+          </div>
+
+          <div class="nav-group hidden" id="navGroupApproval">
+            <p class="admin-nav-label" data-i18n="nav.section.approval">Phê duyệt</p>
+            <button type="button" class="admin-nav-item" data-tab="list" data-list-mode="pending_approval" data-i18n="nav.pendingApproval">Danh sách chờ phê duyệt</button>
+            <button type="button" class="admin-nav-item" data-tab="list" data-list-mode="approved_by_me" data-i18n="nav.approvedByMe">Danh sách đã phê duyệt</button>
           </div>
 
           <p class="admin-nav-label" data-i18n="nav.section.quickLinks">Liên kết nhanh</p>
@@ -212,6 +218,10 @@
                   <span class="info-label" data-i18n="common.capBac">Cấp bậc</span>
                   <strong id="displayCapBac">-</strong>
                 </div>
+                <div class="info-card">
+                  <span class="info-label" data-i18n="common.role">Vai trò</span>
+                  <strong id="displayRole">-</strong>
+                </div>
               </section>
               <div class="kz-account-actions">
                 <a href="./change-password.html" class="primary-btn inline-btn" data-i18n="account.changePassword">Đổi mật khẩu</a>
@@ -239,6 +249,20 @@
                 <label><span data-i18n="kaizen.field.approved">Người duyệt</span><input type="text" id="ideaApproved"></label>
                 <label><span data-i18n="kaizen.field.checked">Kiểm tra</span><input type="text" id="ideaChecked"></label>
                 <label><span data-i18n="kaizen.field.proposer">Đề xuất</span><input type="text" id="ideaProposer2"></label>
+              </div>
+
+              <div class="kz-approval-path">
+                <span class="kz-label" data-i18n="kaizen.field.approvalPath">Luồng phê duyệt</span>
+                <div class="kz-approval-path-options">
+                  <label class="kz-approval-path-option">
+                    <input type="radio" name="approvalPath" id="approvalPathManager" value="manager_only" checked>
+                    <span data-i18n="kaizen.approvalPath.managerOnly">Phê duyệt bởi Manager bộ phận</span>
+                  </label>
+                  <label class="kz-approval-path-option">
+                    <input type="radio" name="approvalPath" id="approvalPathTopManager" value="top_manager">
+                    <span data-i18n="kaizen.approvalPath.topManager">Phê duyệt bởi Manager + Top Manager</span>
+                  </label>
+                </div>
               </div>
 
               <div class="kz-content-row">
@@ -360,6 +384,20 @@
           </div>
         </div>
 
+        <!-- TAB PROGRESS -->
+        <div id="tabProgress" class="kz-panel hidden">
+          <div class="kz-card">
+            <div class="kz-progress-head">
+              <button type="button" id="progressBackBtn" class="ghost-btn" data-i18n="progress.backToList">← Quay lại danh sách</button>
+              <div class="kz-progress-head-meta">
+                <h2 data-i18n="progress.title">Tiến độ phiếu Kaizen</h2>
+                <p id="progressKaizenMeta">-</p>
+              </div>
+            </div>
+            <div id="progressTimeline" class="kz-progress-timeline"></div>
+          </div>
+        </div>
+
         <!-- TAB LIST -->
         <div id="tabList" class="kz-panel hidden">
           <div class="kz-card">
@@ -397,6 +435,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260822g"></script>
+  <script type="module" src="./script.js?v=20260822k"></script>
 </body>
 </html>
