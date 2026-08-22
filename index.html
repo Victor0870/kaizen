@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css?v=20260821d">
-  <link rel="stylesheet" href="./kaizen.css?v=20260821d">
+  <link rel="stylesheet" href="./style.css?v=20260822a">
+  <link rel="stylesheet" href="./kaizen.css?v=20260822a">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -104,8 +104,21 @@
     </section>
   </main>
 
-  <section id="appScreen" class="screen hidden app-page">
-    <div class="admin-layout">
+  <section id="appScreen" class="screen hidden app-page kz-app">
+    <nav class="kz-top-menu" id="kzTopMenu" aria-label="Kaizen">
+      <div class="kz-top-menu-inner">
+        <div class="kz-top-menu-tabs" id="kzTabs">
+          <button type="button" class="kz-tab active" data-tab="idea" data-i18n="kaizen.tab.idea">1. Phiếu Ý Tưởng Kaizen</button>
+          <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">2. Báo Cáo Kết Quả Kaizen</button>
+          <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">3. Danh Sách Ý Tưởng</button>
+        </div>
+        <button type="button" id="headerSaveBtn" class="kz-save-btn">
+          <span data-i18n="kaizen.save">Lưu dữ liệu</span>
+        </button>
+      </div>
+    </nav>
+
+    <div class="admin-layout kz-body-layout">
       <aside class="admin-sidebar">
         <div class="admin-sidebar-brand">
           <div class="admin-brand-icon">KZ</div>
@@ -116,10 +129,6 @@
         </div>
 
         <nav class="admin-sidebar-nav">
-          <p class="admin-nav-label" data-i18n="nav.section.functions">Chức năng</p>
-          <button type="button" class="admin-nav-item active" data-tab="idea" data-i18n="nav.idea">Phiếu ý tưởng</button>
-          <button type="button" class="admin-nav-item" data-tab="report" data-i18n="nav.report">Báo cáo kết quả</button>
-          <button type="button" class="admin-nav-item" data-tab="list" data-i18n="nav.list">Danh sách ý tưởng</button>
           <p class="admin-nav-label" data-i18n="nav.section.quickLinks">Liên kết nhanh</p>
           <a href="./admin.html" class="admin-nav-item" data-i18n="nav.admin">Quản trị hệ thống</a>
         </nav>
@@ -140,52 +149,47 @@
               <button type="button" class="lang-switch-btn" data-lang="en">EN</button>
             </div>
           </div>
-          <div class="admin-user-card">
-            <div id="appUserInitials" class="admin-user-avatar">U</div>
-            <div class="admin-user-meta">
-              <strong id="sidebarUserName">-</strong>
-              <span id="sidebarUserEmail">-</span>
-            </div>
-          </div>
+          <button type="button" id="accountNavBtn" class="admin-nav-item account-nav-btn" data-tab="account" data-i18n="nav.account">
+            Tài khoản
+          </button>
           <button type="button" id="logoutBtn" class="ghost-btn full-btn admin-logout-btn" data-i18n="common.logout">Đăng xuất</button>
         </div>
       </aside>
 
       <div class="admin-main app-main">
-        <header class="kz-topbar">
-          <div>
-            <h1 data-i18n="kaizen.header.title">Hệ Thống Quản Lý & Nhập Liệu Kaizen</h1>
-            <p data-i18n="kaizen.header.subtitle">Nhập phiếu ý tưởng, báo cáo kết quả và quản lý danh sách Kaizen</p>
+        <!-- TAB ACCOUNT -->
+        <div id="tabAccount" class="kz-panel hidden">
+          <div class="kz-card kz-account-card">
+            <div class="kz-account-head">
+              <div id="accountUserInitials" class="admin-user-avatar kz-account-avatar">U</div>
+              <div>
+                <h2 data-i18n="account.title">Thông tin tài khoản</h2>
+                <p id="accountEmail" class="kz-account-email">-</p>
+              </div>
+            </div>
+            <section class="user-info-grid kz-account-grid">
+              <div class="info-card">
+                <span class="info-label" data-i18n="common.fullName">Họ tên</span>
+                <strong id="displayHoTen">-</strong>
+              </div>
+              <div class="info-card">
+                <span class="info-label" data-i18n="common.account">Mã nhân viên</span>
+                <strong id="displayTaiKhoan">-</strong>
+              </div>
+              <div class="info-card">
+                <span class="info-label" data-i18n="common.department">Bộ phận</span>
+                <strong id="displayDepartment">-</strong>
+              </div>
+              <div class="info-card">
+                <span class="info-label" data-i18n="common.capBac">Cấp bậc</span>
+                <strong id="displayCapBac">-</strong>
+              </div>
+            </section>
+            <div class="kz-account-actions">
+              <a href="./change-password.html" class="primary-btn inline-btn" data-i18n="account.changePassword">Đổi mật khẩu</a>
+            </div>
           </div>
-          <button type="button" id="headerSaveBtn" class="kz-save-btn">
-            <span data-i18n="kaizen.save">Lưu dữ liệu</span>
-          </button>
-        </header>
-
-        <section class="user-info-grid">
-          <div class="info-card">
-            <span class="info-label" data-i18n="common.fullName">Họ tên</span>
-            <strong id="displayHoTen">-</strong>
-          </div>
-          <div class="info-card">
-            <span class="info-label" data-i18n="common.account">Mã nhân viên</span>
-            <strong id="displayTaiKhoan">-</strong>
-          </div>
-          <div class="info-card">
-            <span class="info-label" data-i18n="common.department">Bộ phận</span>
-            <strong id="displayDepartment">-</strong>
-          </div>
-          <div class="info-card">
-            <span class="info-label" data-i18n="common.capBac">Cấp bậc</span>
-            <strong id="displayCapBac">-</strong>
-          </div>
-        </section>
-
-        <nav class="kz-tabs" id="kzTabs">
-          <button type="button" class="kz-tab active" data-tab="idea" data-i18n="kaizen.tab.idea">1. Phiếu Ý Tưởng Kaizen</button>
-          <button type="button" class="kz-tab" data-tab="report" data-i18n="kaizen.tab.report">2. Báo Cáo Kết Quả Kaizen</button>
-          <button type="button" class="kz-tab" data-tab="list" data-i18n="kaizen.tab.list">3. Danh Sách Ý Tưởng</button>
-        </nav>
+        </div>
 
         <!-- TAB IDEA -->
         <div id="tabIdea" class="kz-panel">
@@ -364,6 +368,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260821d"></script>
+  <script type="module" src="./script.js?v=20260822a"></script>
 </body>
 </html>

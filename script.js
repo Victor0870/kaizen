@@ -161,6 +161,7 @@ function bindEvents() {
   document.getElementById("saveIdeaBtn")?.addEventListener("click", () => saveKaizen("idea"));
   document.getElementById("saveReportBtn")?.addEventListener("click", () => saveKaizen("report"));
   document.getElementById("headerSaveBtn")?.addEventListener("click", () => {
+    if (activeTab === "account" || activeTab === "list") return;
     saveKaizen(activeTab === "report" ? "report" : "idea");
   });
 
@@ -411,13 +412,16 @@ async function showAppScreen(profile, firebaseUser) {
 
 function fillUserDisplay(profile, firebaseUser) {
   const name = profile.hoTen || "-";
+  const email = firebaseUser.email || profile.email || "";
   document.getElementById("displayHoTen").textContent = name;
   document.getElementById("displayTaiKhoan").textContent = profile.taiKhoan || "-";
   document.getElementById("displayDepartment").textContent = profile.department || "-";
   document.getElementById("displayCapBac").textContent = profile.capBac || "-";
-  document.getElementById("sidebarUserName").textContent = name;
-  document.getElementById("sidebarUserEmail").textContent = firebaseUser.email || profile.email || "";
-  document.getElementById("appUserInitials").textContent = getInitials(name);
+  const emailEl = document.getElementById("accountEmail");
+  if (emailEl) emailEl.textContent = email;
+  const initials = getInitials(name);
+  const accountAvatar = document.getElementById("accountUserInitials");
+  if (accountAvatar) accountAvatar.textContent = initials;
 
   const proposer = document.getElementById("ideaProposer");
   const proposer2 = document.getElementById("ideaProposer2");
@@ -452,6 +456,13 @@ function setActiveTab(tab) {
   document.getElementById("tabIdea")?.classList.toggle("hidden", tab !== "idea");
   document.getElementById("tabReport")?.classList.toggle("hidden", tab !== "report");
   document.getElementById("tabList")?.classList.toggle("hidden", tab !== "list");
+  document.getElementById("tabAccount")?.classList.toggle("hidden", tab !== "account");
+
+  const saveBtn = document.getElementById("headerSaveBtn");
+  if (saveBtn) {
+    saveBtn.classList.toggle("hidden", tab === "account" || tab === "list");
+  }
+
   if (tab === "list") loadKaizenListSafe();
 }
 

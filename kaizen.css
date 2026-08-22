@@ -1,28 +1,64 @@
 /* Kaizen form UI — adapted from giao dien kaizen.tsx */
 
-.kz-topbar {
+.kz-app {
   display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.kz-top-menu {
+  width: 100%;
+  background: #0f766e;
+  border-bottom: 1px solid #0d9488;
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.18);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.kz-top-menu-inner {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  background: linear-gradient(135deg, #1e3a5f 0%, #0f766e 100%);
-  color: #fff;
-  border-radius: 14px;
-  padding: 1.1rem 1.25rem;
-  margin-bottom: 1rem;
-  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.2);
+  gap: 0.75rem;
+  width: 100%;
+  max-width: none;
+  padding: 0.35rem 0.75rem 0.35rem 0.5rem;
 }
 
-.kz-topbar h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 800;
+.kz-top-menu-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-x: auto;
 }
 
-.kz-topbar p {
-  margin: 0.25rem 0 0;
+.kz-top-menu .kz-tab {
+  border: none;
+  background: transparent;
+  color: #ccfbf1;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
   font-size: 0.85rem;
-  opacity: 0.9;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kz-top-menu .kz-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.kz-top-menu .kz-tab.active {
+  background: #fff;
+  color: #0f766e;
+}
+
+.kz-body-layout {
+  flex: 1;
+  min-height: 0;
 }
 
 .kz-save-btn {
@@ -34,36 +70,63 @@
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .kz-save-btn:hover { background: #047857; }
+.kz-save-btn.hidden { display: none; }
 
-.kz-tabs {
+.account-nav-btn {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  border-radius: 10px;
+}
+
+.account-nav-btn.active {
+  background: rgba(15, 118, 110, 0.35);
+  border-color: rgba(15, 118, 110, 0.55);
+}
+
+.kz-account-card {
+  padding: 1.25rem;
+}
+
+.kz-account-head {
   display: flex;
-  gap: 0.35rem;
-  overflow-x: auto;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0.35rem;
+  align-items: center;
+  gap: 1rem;
   margin-bottom: 1rem;
 }
 
-.kz-tab {
-  border: none;
-  background: transparent;
-  padding: 0.7rem 1rem;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: #475569;
-  cursor: pointer;
-  white-space: nowrap;
+.kz-account-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
 }
 
-.kz-tab.active {
-  background: #ecfdf5;
-  color: #0f766e;
+.kz-account-email {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.kz-account-avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 1.1rem;
+}
+
+.kz-account-grid {
+  margin: 0;
+}
+
+.kz-account-actions {
+  margin-top: 1.1rem;
 }
 
 .kz-card {
@@ -392,7 +455,7 @@
 }
 
 @media (max-width: 768px) {
-  .kz-topbar { flex-direction: column; }
+  .kz-top-menu-inner { flex-wrap: wrap; }
   .kz-metric-row { grid-template-columns: 1fr; }
 }
 
@@ -421,4 +484,8 @@ body.preview-mode a.auth-admin-link {
 
 body.preview-mode #appScreen {
   min-height: calc(100vh - 40px);
+}
+
+body.preview-mode .kz-top-menu {
+  top: 40px;
 }

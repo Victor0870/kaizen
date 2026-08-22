@@ -20,6 +20,10 @@ const MESSAGES = {
     "nav.adminUsers": "Quản lý người dùng",
     "nav.brand.system": "Hệ thống Kaizen",
     "nav.home": "Trang Kaizen",
+    "nav.account": "Tài khoản",
+
+    "account.title": "Thông tin tài khoản",
+    "account.changePassword": "Đổi mật khẩu",
 
     "common.logout": "Đăng xuất",
     "common.logoutSystem": "Đăng xuất hệ thống",
@@ -236,6 +240,10 @@ const MESSAGES = {
     "nav.adminUsers": "User management",
     "nav.brand.system": "Kaizen System",
     "nav.home": "Kaizen home",
+    "nav.account": "Account",
+
+    "account.title": "Account information",
+    "account.changePassword": "Change password",
 
     "common.logout": "Log out",
     "common.logoutSystem": "Log out of system",
