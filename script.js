@@ -46,6 +46,7 @@ import {
   deleteUser,
   doc,
   getDoc,
+  getDocFromServer,
   setDoc,
   serverTimestamp
 } from "./firebase-config.js";
@@ -53,6 +54,8 @@ import {
 let currentFirebaseUser = null;
 let currentUserProfile = null;
 let isHandlingRegistration = false;
+let authReady = false;
+let isLoadingAuth = false;
 let toastTimer = null;
 let activeTab = "idea";
 let listStatusFilter = "all";
@@ -68,10 +71,8 @@ document.addEventListener("DOMContentLoaded", initApp);
 
 async function initApp() {
   initI18n();
+  await initAppCheck().catch((error) => console.warn(error));
   bindEvents();
-  syncFormDefaults();
-  renderClassificationButtons();
-  updateMetricsUI();
 
   onLanguageChange(() => {
     document.querySelectorAll("[data-original-text]").forEach((el) => {
@@ -98,10 +99,9 @@ async function initApp() {
   }
 
   try {
-    await initAppCheck().catch((error) => console.warn(error));
     await authPersistenceReady;
-    observeAuthState();
     void loadRegisterCatalog().then(() => populateRegisterSelects());
+    observeAuthState();
   } catch (error) {
     console.error("Không thể khởi tạo Firebase:", error);
     showPageLoader(false);
@@ -238,16 +238,34 @@ function observeAuthState() {
     if (isHandlingRegistration) {
       return;
     }
+    if (isLoadingAuth) {
+      return;
+    }
+
+    let keepLoader = false;
 
     try {
       if (!user) {
+        if (!authReady) {
+          if (auth.currentUser) {
+            keepLoader = true;
+            return;
+          }
+          authReady = true;
+        }
         currentFirebaseUser = null;
         currentUserProfile = null;
         showLoginScreen();
         return;
       }
 
-      await enterSignedInUser(user);
+      isLoadingAuth = true;
+      authReady = true;
+      currentFirebaseUser = user;
+      const profile = await loadCurrentUserProfile(user.uid);
+      ensureAuthorizedAccess(profile);
+      currentUserProfile = profile;
+      await showAppScreen(profile, user);
     } catch (error) {
       console.error(error);
       const message = error.message || t("auth.loadProfileFailed");
@@ -259,17 +277,12 @@ function observeAuthState() {
       showLoginScreen();
       showToast(message, "error");
     } finally {
-      showPageLoader(false);
+      isLoadingAuth = false;
+      if (!keepLoader) {
+        showPageLoader(false);
+      }
     }
   });
-}
-
-async function enterSignedInUser(user) {
-  currentFirebaseUser = user;
-  const profile = await loadOrProvisionUserProfile(user);
-  ensureAuthorizedAccess(profile);
-  currentUserProfile = profile;
-  await showAppScreen(profile, user);
 }
 
 async function handleLogin(event) {
@@ -286,25 +299,14 @@ async function handleLogin(event) {
   }
 
   setButtonLoading(loginBtn, true, t("auth.loggingIn"));
-  showPageLoader(true, t("auth.loggingIn"));
 
   try {
-    const credential = await signInWithEmailAndPassword(auth, email, password);
+    await signInWithEmailAndPassword(auth, email, password);
     document.getElementById("passwordInput").value = "";
-    await enterSignedInUser(credential.user);
-    showPageLoader(false);
     showToast(t("auth.loginSuccess"), "success");
   } catch (error) {
     console.error(error);
-    const message = error.code
-      ? getFirebaseErrorMessage(error)
-      : (error.message || t("auth.loadProfileFailed"));
-    if (shouldSignOutOnAccessError(message)) {
-      await safeSignOut();
-    }
-    showPageLoader(false);
-    showLoginScreen();
-    showToast(message, "error");
+    showToast(getFirebaseErrorMessage(error), "error");
   } finally {
     setButtonLoading(loginBtn, false);
   }
@@ -484,9 +486,33 @@ function mapUserProfile(uid, profile) {
 }
 
 async function loadCurrentUserProfile(uid) {
-  const docSnap = await getDoc(doc(db, "users", uid));
-  if (!docSnap.exists()) throw new Error(t("auth.profileNotFound"));
+  const docRef = doc(db, "users", uid);
+  const docSnap = await readUserDocWithFallback(docRef);
+  if (!docSnap.exists()) {
+    throw new Error(t("auth.profileNotFound"));
+  }
   return mapUserProfile(uid, docSnap.data());
+}
+
+async function readUserDocWithFallback(docRef) {
+  const timeoutMs = 15000;
+  let timer = null;
+  try {
+    return await Promise.race([
+      getDoc(docRef),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error("profile-timeout")), timeoutMs);
+      })
+    ]);
+  } catch (error) {
+    if (error?.message !== "profile-timeout") {
+      throw error;
+    }
+    console.warn("getDoc chậm, thử getDocFromServer...");
+    return getDocFromServer(docRef);
+  } finally {
+    if (timer != null) window.clearTimeout(timer);
+  }
 }
 
 /** Chỉ kiểm tra trạng thái tài khoản — chưa phân quyền theo cấp bậc. */
@@ -513,6 +539,8 @@ function showLoginScreen(prefillEmail = "") {
   if (prefillEmail) {
     const emailInput = document.getElementById("emailInput");
     if (emailInput) emailInput.value = prefillEmail;
+  } else {
+    document.getElementById("loginForm")?.reset();
   }
   showAuthTab("login");
 }
@@ -524,6 +552,8 @@ async function showAppScreen(profile, firebaseUser) {
   fillUserDisplay(profile, firebaseUser);
   bindPasswordExpiry(profile, firebaseUser);
   syncFormDefaults();
+  renderClassificationButtons();
+  updateMetricsUI();
   applyRoleBasedUI();
   setActiveTab(activeTab || "idea");
   autoFillKaizenId();
