@@ -377,6 +377,8 @@
 .kz-manager-review {
   margin-top: 1.25rem;
   padding-top: 1.25rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
   border-top: 1px solid rgba(201, 162, 39, 0.35);
 }
 
@@ -428,7 +430,7 @@
 .kz-investment-option {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   flex-wrap: wrap;
   cursor: pointer;
   font-size: 0.95rem;
@@ -437,11 +439,13 @@
 .kz-investment-option input[type="radio"] {
   flex-shrink: 0;
   margin: 0;
+  transform: scale(1.15);
+  transform-origin: center;
 }
 
 .kz-investment-with-amount .kz-investment-amount {
-  width: 9rem;
-  min-width: 7rem;
+  width: 8rem;
+  min-width: 6.5rem;
   padding: 0.35rem 0.5rem;
   margin-left: 0.25rem;
 }
@@ -453,14 +457,14 @@
 
 .kz-manager-review-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
   gap: 0.75rem;
 }
 
 .kz-manager-review-actions button {
-  width: 100%;
-  min-height: 2.5rem;
-  justify-content: center;
+  width: auto;
+  min-height: 2.35rem;
+  justify-self: center;
   text-align: center;
 }
 
