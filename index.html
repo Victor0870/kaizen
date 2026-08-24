@@ -6,6 +6,7 @@
   <title>Kaizen - Idemitsu</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css?v=20260822q">
   <link rel="stylesheet" href="./kaizen.css?v=20260822p">
@@ -18,14 +19,14 @@
     </div>
   </div>
   <script>
-    /* Fallback: nếu module JS lỗi/treo, vẫn ẩn loader sau 12s */
+    /* Fallback: nếu module JS treo khi tải Firebase CDN, vẫn ẩn loader sau 20s */
     setTimeout(function () {
       var loader = document.getElementById("pageLoader");
       if (!loader || loader.classList.contains("hidden")) return;
       loader.classList.add("hidden");
       var login = document.getElementById("loginScreen");
       if (login) login.classList.remove("hidden");
-    }, 12000);
+    }, 20000);
   </script>
 
   <main id="authShell" class="app-shell">
@@ -443,6 +444,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260824a"></script>
+  <script type="module" src="./script.js?v=20260824b"></script>
 </body>
 </html>

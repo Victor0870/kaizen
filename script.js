@@ -34,20 +34,21 @@ import {
   approveKaizenL2,
   startKaizenProgress
 } from "./kaizen-service.js";
-
-let auth = null;
-let db = null;
-let authPersistenceReady = Promise.resolve();
-let initAppCheck = async () => {};
-let onAuthStateChanged = () => () => {};
-let signInWithEmailAndPassword = async () => {};
-let createUserWithEmailAndPassword = async () => {};
-let signOut = async () => {};
-let deleteUser = async () => {};
-let doc = () => {};
-let getDoc = async () => {};
-let setDoc = async () => {};
-let serverTimestamp = () => null;
+import {
+  auth,
+  db,
+  authPersistenceReady,
+  initAppCheck,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  deleteUser,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp
+} from "./firebase-config.js";
 
 let currentFirebaseUser = null;
 let currentUserProfile = null;
@@ -96,48 +97,12 @@ async function initApp() {
     return;
   }
 
-  const bootTimeout = window.setTimeout(() => {
-    console.warn("Khởi tạo ứng dụng quá lâu — hiện màn hình đăng nhập");
-    showPageLoader(false);
-    showLoginScreen();
-    showToast(t("auth.sessionTimeout"), "error");
-  }, 10000);
-
   try {
-    const firebase = await Promise.race([
-      import("./firebase-config.js"),
-      new Promise((_, reject) => {
-        window.setTimeout(() => reject(new Error("firebase-config-timeout")), 8000);
-      })
-    ]);
-    auth = firebase.auth;
-    db = firebase.db;
-    authPersistenceReady = firebase.authPersistenceReady;
-    initAppCheck = firebase.initAppCheck;
-    onAuthStateChanged = firebase.onAuthStateChanged;
-    signInWithEmailAndPassword = firebase.signInWithEmailAndPassword;
-    createUserWithEmailAndPassword = firebase.createUserWithEmailAndPassword;
-    signOut = firebase.signOut;
-    deleteUser = firebase.deleteUser;
-    doc = firebase.doc;
-    getDoc = firebase.getDoc;
-    setDoc = firebase.setDoc;
-    serverTimestamp = firebase.serverTimestamp;
-
-    await Promise.race([
-      initAppCheck().catch((error) => console.warn(error)),
-      new Promise((resolve) => window.setTimeout(resolve, 2000))
-    ]);
-    await Promise.race([
-      authPersistenceReady,
-      new Promise((resolve) => window.setTimeout(resolve, 3000))
-    ]);
-
-    window.clearTimeout(bootTimeout);
+    await initAppCheck().catch((error) => console.warn(error));
+    await authPersistenceReady;
     observeAuthState();
     void loadRegisterCatalog().then(() => populateRegisterSelects());
   } catch (error) {
-    window.clearTimeout(bootTimeout);
     console.error("Không thể khởi tạo Firebase:", error);
     showPageLoader(false);
     showLoginScreen();
@@ -316,11 +281,14 @@ function observeAuthState() {
       );
       ensureAuthorizedAccess(profile);
       currentUserProfile = profile;
+      const showLoginToast = !document.getElementById("loginScreen")?.classList.contains("hidden");
       await showAppScreen(profile, user);
       sessionActive = true;
       window.clearTimeout(authTimeout);
       showPageLoader(false);
-      showToast(t("auth.loginSuccess"), "success");
+      if (showLoginToast) {
+        showToast(t("auth.loginSuccess"), "success");
+      }
     } catch (error) {
       console.error(error);
       sessionActive = false;
