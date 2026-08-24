@@ -15,8 +15,6 @@ import {
 
 import {
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   doc,
   getDoc,
   getDocFromServer,
@@ -29,6 +27,7 @@ import {
   orderBy,
   limit,
   getDocs,
+  getDocsFromServer,
   addDoc,
   deleteDoc,
   Timestamp,
@@ -70,11 +69,8 @@ const APP_CHECK_RECAPTCHA_SITE_KEY = "";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
-});
+// Memory cache — persistentLocalCache/IndexedDB dễ treo getDoc/getDocs trên GitHub Pages.
+const db = initializeFirestore(app);
 
 const storage = getStorage(app);
 const functions = getFunctions(app, "asia-southeast1");
@@ -149,6 +145,7 @@ export {
   orderBy,
   limit,
   getDocs,
+  getDocsFromServer,
   addDoc,
   deleteDoc,
   Timestamp,

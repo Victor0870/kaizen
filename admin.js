@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   collection,
   getDocs,
+  getDocsFromServer,
   setDoc
 } from "./firebase-config.js";
 import { initI18n, t, onLanguageChange, applyI18n, getLang } from "./i18n.js";
@@ -158,7 +159,16 @@ function observeAuth() {
       authReady = true;
       isLoadingAdminData = true;
 
-      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const userDoc = await withTimeout(
+        getDoc(doc(db, "users", user.uid)),
+        12000,
+        "admin-profile-timeout"
+      ).catch(async (error) => {
+        if (error?.message !== "admin-profile-timeout") throw error;
+        console.warn("getDoc profile chậm, thử getDocFromServer...");
+        return getDocFromServer(doc(db, "users", user.uid));
+      });
+
       if (!userDoc.exists()) {
         showTableError(t("admin.profileNotFound"));
         showToast(t("admin.profileNotFound"), "error");
@@ -170,7 +180,6 @@ function observeAuth() {
       const role = String(profile.role || "").trim().toLowerCase();
       const status = String(profile.status || "").trim().toLowerCase();
 
-      // Tạm giữ role=admin để vào trang quản trị tài khoản; phân quyền phê duyệt phiếu sẽ làm sau theo capBac.
       if (role !== "admin") {
         showTableError(t("admin.noAdminRole"));
         showToast(t("admin.noAdminAccess"), "error");
@@ -186,18 +195,34 @@ function observeAuth() {
       }
 
       updateAdminSidebar(user, profile);
-      await loadUsers(false);
-      void loadCatalog(false);
+      showPageLoader(false);
       showAdminSection(location.hash === "#catalogSection" ? "catalogSection" : "usersSection");
+      // Tải danh sách nền — không chặn UI / không giữ loader.
+      void loadUsers(false);
+      void loadCatalog(false);
     } catch (error) {
       console.error(error);
-      const message = getFirestoreErrorMessage(error);
+      const message = error?.message === "admin-profile-timeout"
+        ? t("admin.loadFailed")
+        : getFirestoreErrorMessage(error);
       showTableError(message);
       showToast(message, "error");
     } finally {
       isLoadingAdminData = false;
       showPageLoader(false);
     }
+  });
+}
+
+function withTimeout(promise, ms, label = "timeout") {
+  let timer = null;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = window.setTimeout(() => reject(new Error(label)), ms);
+    })
+  ]).finally(() => {
+    if (timer != null) window.clearTimeout(timer);
   });
 }
 
@@ -230,17 +255,32 @@ function getInitials(name) {
 
 async function loadUsers(showLoader = true) {
   if (showLoader) showPageLoader(true, t("admin.syncingUsers"));
+  const tbody = document.getElementById("userTableBody");
+  if (tbody && !users.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-table">${escapeHtml(t("admin.syncingUsers"))}</td></tr>`;
+  }
+
   try {
-    const snap = await getDocs(collection(db, "users"));
+    const usersRef = collection(db, "users");
+    let snap;
+    try {
+      snap = await withTimeout(getDocs(usersRef), 12000, "users-timeout");
+    } catch (error) {
+      if (error?.message !== "users-timeout") throw error;
+      console.warn("getDocs users chậm, thử getDocsFromServer...");
+      snap = await withTimeout(getDocsFromServer(usersRef), 15000, "users-server-timeout");
+    }
+
     users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     updateStats();
     renderUserTable();
   } catch (error) {
     console.error(error);
-    const message = getFirestoreErrorMessage(error);
+    const message = error?.message === "users-timeout" || error?.message === "users-server-timeout"
+      ? t("admin.loadFailed")
+      : getFirestoreErrorMessage(error);
     showTableError(message);
     showToast(message, "error");
-    throw error;
   } finally {
     if (showLoader) showPageLoader(false);
   }
