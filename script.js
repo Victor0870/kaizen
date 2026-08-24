@@ -279,57 +279,62 @@ function withTimeout(promise, ms, label = "timeout") {
 function observeAuthState() {
   showPageLoader(true, t("common.checkingSession"));
 
-  let finished = false;
-  const finish = (showLogin = false) => {
-    if (finished) return;
-    finished = true;
-    window.clearTimeout(authTimeout);
-    showPageLoader(false);
-    if (showLogin) showLoginScreen();
-  };
+  let handlingAuth = false;
+  let sessionActive = false;
 
   const authTimeout = window.setTimeout(() => {
+    if (sessionActive) return;
     console.warn("Firebase auth/profile timeout");
-    finish(true);
+    showPageLoader(false);
+    showLoginScreen();
     showToast(t("auth.sessionTimeout"), "error");
-  }, 10000);
+  }, 15000);
 
   onAuthStateChanged(auth, async (user) => {
     if (isHandlingRegistration) {
-      finish(false);
+      showPageLoader(false);
       return;
     }
-    if (finished) return;
+    if (handlingAuth) return;
 
+    handlingAuth = true;
     try {
       if (!user) {
+        sessionActive = false;
         currentFirebaseUser = null;
         currentUserProfile = null;
-        finish(true);
+        showPageLoader(false);
+        showLoginScreen();
         return;
       }
 
       currentFirebaseUser = user;
       const profile = await withTimeout(
         loadOrProvisionUserProfile(user),
-        8000,
+        12000,
         "profile-timeout"
       );
       ensureAuthorizedAccess(profile);
       currentUserProfile = profile;
       await showAppScreen(profile, user);
-      finish(false);
+      sessionActive = true;
+      window.clearTimeout(authTimeout);
+      showPageLoader(false);
       showToast(t("auth.loginSuccess"), "success");
     } catch (error) {
       console.error(error);
+      sessionActive = false;
       const message = error?.message === "profile-timeout"
         ? t("auth.sessionTimeout")
         : (error.message || t("auth.loadProfileFailed"));
       if (shouldSignOutOnAccessError(message)) {
         await safeSignOut();
       }
-      finish(true);
+      showPageLoader(false);
+      showLoginScreen();
       showToast(message, "error");
+    } finally {
+      handlingAuth = false;
     }
   });
 }
@@ -348,12 +353,14 @@ async function handleLogin(event) {
   }
 
   setButtonLoading(loginBtn, true, t("auth.loggingIn"));
+  showPageLoader(true, t("auth.loggingIn"));
   try {
     await signInWithEmailAndPassword(auth, email, password);
     document.getElementById("passwordInput").value = "";
-    // Thành công thật sự khi observeAuthState tải được hồ sơ và vào app.
+    // observeAuthState sẽ tải hồ sơ và vào app.
   } catch (error) {
     console.error(error);
+    showPageLoader(false);
     showToast(getFirebaseErrorMessage(error), "error");
   } finally {
     setButtonLoading(loginBtn, false);
