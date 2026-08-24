@@ -46,7 +46,6 @@ import {
   deleteUser,
   doc,
   getDoc,
-  getDocFromServer,
   setDoc,
   serverTimestamp
 } from "./firebase-config.js";
@@ -110,7 +109,7 @@ async function initApp() {
 
 async function loadRegisterCatalog() {
   try {
-    registerCatalog = await fetchCatalog(db, doc, getDoc, getDocFromServer);
+    registerCatalog = await fetchCatalog(db, doc, getDoc);
   } catch (error) {
     console.warn("Không thể tải danh mục bộ phận/chức danh, dùng mặc định:", error);
     registerCatalog = {
@@ -232,48 +231,90 @@ function showAuthTab(tabName) {
 function observeAuthState() {
   showPageLoader(true, t("common.checkingSession"));
 
-  // An toàn: không để spinner quay vô hạn nếu auth/Firestore treo.
-  const safetyTimer = window.setTimeout(() => {
-    if (currentUserProfile) return;
-    console.warn("Kiểm tra phiên đăng nhập quá lâu — hiện màn hình đăng nhập.");
-    showPageLoader(false);
-    showLoginScreen();
-    showToast(t("auth.sessionTimeout"), "error");
-  }, 18000);
-
   onAuthStateChanged(auth, async (user) => {
     if (isHandlingRegistration) {
       return;
     }
 
-    try {
-      if (!user) {
-        currentFirebaseUser = null;
-        currentUserProfile = null;
-        showLoginScreen();
-        return;
-      }
+    if (!user) {
+      currentFirebaseUser = null;
+      currentUserProfile = null;
+      showPageLoader(false);
+      showLoginScreen();
+      return;
+    }
 
-      currentFirebaseUser = user;
-      const profile = await loadCurrentUserProfile(user.uid);
-      ensureAuthorizedAccess(profile);
-      currentUserProfile = profile;
-      await showAppScreen(profile, user);
-      window.clearTimeout(safetyTimer);
-    } catch (error) {
-      console.error(error);
-      const message = error.message || t("auth.loadProfileFailed");
+    currentFirebaseUser = user;
+    await processSignedInUser(user);
+  });
+}
 
-      if (shouldSignOutOnAccessError(message)) {
-        await safeSignOut();
-      }
+async function processSignedInUser(user) {
+  showPageLoader(true, t("common.checkingSession"));
+  try {
+    const profile = await loadCurrentUserProfile(user.uid);
+    ensureAuthorizedAccess(profile);
+    currentUserProfile = profile;
+    await showAppScreen(profile, user);
+    showPageLoader(false);
+  } catch (error) {
+    console.error("Lỗi kiểm tra phiên đăng nhập:", error?.code || "", error?.message || error);
+    const message = error.message || t("auth.loadProfileFailed");
+    showPageLoader(false);
 
+    if (shouldSignOutOnAccessError(message)) {
+      await safeSignOut();
       showLoginScreen();
       showToast(message, "error");
-    } finally {
-      showPageLoader(false);
+    } else {
+      // Firebase vẫn còn phiên đăng nhập — lỗi chỉ là do đọc Firestore chậm/lỗi tạm thời.
+      // KHÔNG đưa về màn hình đăng nhập (tài khoản vẫn đang đăng nhập, bấm "Đăng nhập" sẽ không có tác dụng).
+      showRetryScreen(message, user);
     }
-  });
+  }
+}
+
+function showRetryScreen(message, user) {
+  document.getElementById("appScreen")?.classList.add("hidden");
+  document.getElementById("loginScreen")?.classList.add("hidden");
+  document.getElementById("authShell")?.classList.remove("hidden");
+
+  let retryScreen = document.getElementById("retryScreen");
+  if (!retryScreen) {
+    retryScreen = document.createElement("section");
+    retryScreen.id = "retryScreen";
+    retryScreen.className = "screen auth-screen";
+    retryScreen.innerHTML = `
+      <div class="auth-card">
+        <div class="brand-line"></div>
+        <h1 class="auth-title">Kaizen System</h1>
+        <p class="auth-subtitle" id="retryScreenMessage"></p>
+        <button type="button" id="retryScreenBtn" class="primary-btn full-btn"></button>
+        <button type="button" id="retryScreenLogoutBtn" class="ghost-btn full-btn"></button>
+      </div>
+    `;
+    document.getElementById("authShell")?.appendChild(retryScreen);
+  }
+  const msgEl = document.getElementById("retryScreenMessage");
+  if (msgEl) msgEl.textContent = message;
+  const retryBtn = document.getElementById("retryScreenBtn");
+  if (retryBtn) {
+    retryBtn.textContent = t("common.retry");
+    retryBtn.onclick = () => {
+      retryScreen.classList.add("hidden");
+      void processSignedInUser(user);
+    };
+  }
+  const logoutBtn = document.getElementById("retryScreenLogoutBtn");
+  if (logoutBtn) {
+    logoutBtn.textContent = t("common.logout");
+    logoutBtn.onclick = async () => {
+      await safeSignOut();
+      retryScreen.classList.add("hidden");
+      showLoginScreen();
+    };
+  }
+  retryScreen.classList.remove("hidden");
 }
 
 async function handleLogin(event) {
@@ -478,42 +519,11 @@ function mapUserProfile(uid, profile) {
 
 async function loadCurrentUserProfile(uid) {
   const docRef = doc(db, "users", uid);
-  const docSnap = await readUserDocWithFallback(docRef);
+  const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) {
     throw new Error(t("auth.profileNotFound"));
   }
   return mapUserProfile(uid, docSnap.data());
-}
-
-async function readUserDocWithFallback(docRef) {
-  const timeoutMs = 10000;
-
-  const raceGet = (promise, label) => {
-    let timer = null;
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        timer = window.setTimeout(() => reject(new Error(label)), timeoutMs);
-      })
-    ]).finally(() => {
-      if (timer != null) window.clearTimeout(timer);
-    });
-  };
-
-  try {
-    return await raceGet(getDoc(docRef), "profile-timeout");
-  } catch (error) {
-    if (error?.message !== "profile-timeout") throw error;
-    console.warn("getDoc chậm, thử getDocFromServer...");
-    try {
-      return await raceGet(getDocFromServer(docRef), "profile-server-timeout");
-    } catch (serverError) {
-      if (serverError?.message === "profile-server-timeout" || serverError?.message === "profile-timeout") {
-        throw new Error(t("auth.sessionTimeout"));
-      }
-      throw serverError;
-    }
-  }
 }
 
 /** Chỉ kiểm tra trạng thái tài khoản — chưa phân quyền theo cấp bậc. */
@@ -535,6 +545,7 @@ function shouldSignOutOnAccessError(message) {
 
 function showLoginScreen(prefillEmail = "") {
   document.getElementById("appScreen")?.classList.add("hidden");
+  document.getElementById("retryScreen")?.classList.add("hidden");
   document.getElementById("loginScreen")?.classList.remove("hidden");
   document.getElementById("authShell")?.classList.remove("hidden");
   if (prefillEmail) {
@@ -548,6 +559,7 @@ function showLoginScreen(prefillEmail = "") {
 
 async function showAppScreen(profile, firebaseUser) {
   document.getElementById("loginScreen")?.classList.add("hidden");
+  document.getElementById("retryScreen")?.classList.add("hidden");
   document.getElementById("authShell")?.classList.add("hidden");
   document.getElementById("appScreen")?.classList.remove("hidden");
   fillUserDisplay(profile, firebaseUser);

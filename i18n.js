@@ -32,6 +32,7 @@ const MESSAGES = {
 
     "common.logout": "Đăng xuất",
     "common.logoutSystem": "Đăng xuất hệ thống",
+    "common.retry": "Thử lại",
     "common.company": "Idemitsu Lubricants Vietnam",
     "common.loading": "Đang xử lý...",
     "common.loadingData": "Đang tải dữ liệu...",
@@ -372,6 +373,7 @@ const MESSAGES = {
 
     "common.logout": "Log out",
     "common.logoutSystem": "Log out of system",
+    "common.retry": "Retry",
     "common.company": "Idemitsu Lubricants Vietnam",
     "common.loading": "Processing...",
     "common.loadingData": "Loading data...",

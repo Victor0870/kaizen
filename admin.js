@@ -7,13 +7,11 @@ import {
   signOut,
   doc,
   getDoc,
-  getDocFromServer,
   updateDoc,
   addDoc,
   serverTimestamp,
   collection,
   getDocs,
-  getDocsFromServer,
   setDoc
 } from "./firebase-config.js";
 import { initI18n, t, onLanguageChange, applyI18n, getLang } from "./i18n.js";
@@ -159,15 +157,7 @@ function observeAuth() {
       authReady = true;
       isLoadingAdminData = true;
 
-      const userDoc = await withTimeout(
-        getDoc(doc(db, "users", user.uid)),
-        12000,
-        "admin-profile-timeout"
-      ).catch(async (error) => {
-        if (error?.message !== "admin-profile-timeout") throw error;
-        console.warn("getDoc profile chậm, thử getDocFromServer...");
-        return getDocFromServer(doc(db, "users", user.uid));
-      });
+      const userDoc = await getDoc(doc(db, "users", user.uid));
 
       if (!userDoc.exists()) {
         showTableError(t("admin.profileNotFound"));
@@ -202,27 +192,13 @@ function observeAuth() {
       void loadCatalog(false);
     } catch (error) {
       console.error(error);
-      const message = error?.message === "admin-profile-timeout"
-        ? t("admin.loadFailed")
-        : getFirestoreErrorMessage(error);
+      const message = getFirestoreErrorMessage(error);
       showTableError(message);
       showToast(message, "error");
     } finally {
       isLoadingAdminData = false;
       showPageLoader(false);
     }
-  });
-}
-
-function withTimeout(promise, ms, label = "timeout") {
-  let timer = null;
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      timer = window.setTimeout(() => reject(new Error(label)), ms);
-    })
-  ]).finally(() => {
-    if (timer != null) window.clearTimeout(timer);
   });
 }
 
@@ -261,24 +237,13 @@ async function loadUsers(showLoader = true) {
   }
 
   try {
-    const usersRef = collection(db, "users");
-    let snap;
-    try {
-      snap = await withTimeout(getDocs(usersRef), 12000, "users-timeout");
-    } catch (error) {
-      if (error?.message !== "users-timeout") throw error;
-      console.warn("getDocs users chậm, thử getDocsFromServer...");
-      snap = await withTimeout(getDocsFromServer(usersRef), 15000, "users-server-timeout");
-    }
-
+    const snap = await getDocs(collection(db, "users"));
     users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     updateStats();
     renderUserTable();
   } catch (error) {
     console.error(error);
-    const message = error?.message === "users-timeout" || error?.message === "users-server-timeout"
-      ? t("admin.loadFailed")
-      : getFirestoreErrorMessage(error);
+    const message = getFirestoreErrorMessage(error);
     showTableError(message);
     showToast(message, "error");
   } finally {
@@ -375,28 +340,6 @@ function renderRoleSelect(u) {
     <select class="admin-role-select" data-id="${u.id}"${disabled ? " disabled" : ""} aria-label="${escapeHtml(t("admin.users.changeRole"))}">
       ${options}
     </select>
-  `;
-}
-  if (status === "pending") {
-    return `
-      <div class="action-buttons">
-        <button type="button" class="btn-action approve btn-approve" data-id="${userId}">${t("common.approve")}</button>
-        <button type="button" class="btn-action reject btn-reject" data-id="${userId}">${t("common.reject")}</button>
-      </div>
-    `;
-  }
-  if (status === "active") {
-    return `
-      <div class="action-buttons">
-        <span class="admin-reviewed-note">${t("admin.statusActive")}</span>
-        <button type="button" class="btn-action lock btn-lock" data-id="${userId}">${t("common.lock")}</button>
-      </div>
-    `;
-  }
-  return `
-    <div class="action-buttons">
-      <button type="button" class="btn-action unlock btn-unlock" data-id="${userId}">${t("common.unlock")}</button>
-    </div>
   `;
 }
 
@@ -629,8 +572,7 @@ async function loadCatalog(showLoader = true) {
       doc,
       getDoc,
       setDoc,
-      serverTimestamp,
-      getDocFromServer
+      serverTimestamp
     );
     catalogDepartments = [...result.departments];
     catalogRanks = [...result.ranks];

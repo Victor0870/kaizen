@@ -15,9 +15,10 @@ import {
 
 import {
   initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc,
   getDoc,
-  getDocFromServer,
   setDoc,
   updateDoc,
   serverTimestamp,
@@ -27,7 +28,6 @@ import {
   orderBy,
   limit,
   getDocs,
-  getDocsFromServer,
   addDoc,
   deleteDoc,
   Timestamp,
@@ -69,8 +69,12 @@ const APP_CHECK_RECAPTCHA_SITE_KEY = "";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Memory cache — persistentLocalCache/IndexedDB dễ treo getDoc/getDocs trên GitHub Pages.
-const db = initializeFirestore(app);
+// Giống ATVSV (đã chạy ổn định trên GitHub Pages): dùng persistentLocalCache + đa tab.
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
 
 const storage = getStorage(app);
 const functions = getFunctions(app, "asia-southeast1");
@@ -135,7 +139,6 @@ export {
   updatePassword,
   doc,
   getDoc,
-  getDocFromServer,
   setDoc,
   updateDoc,
   serverTimestamp,
@@ -145,7 +148,6 @@ export {
   orderBy,
   limit,
   getDocs,
-  getDocsFromServer,
   addDoc,
   deleteDoc,
   Timestamp,
