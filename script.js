@@ -54,8 +54,6 @@ import {
 let currentFirebaseUser = null;
 let currentUserProfile = null;
 let isHandlingRegistration = false;
-let authReady = false;
-let isLoadingAuth = false;
 let toastTimer = null;
 let activeTab = "idea";
 let listStatusFilter = "all";
@@ -234,38 +232,34 @@ function showAuthTab(tabName) {
 function observeAuthState() {
   showPageLoader(true, t("common.checkingSession"));
 
+  // An toàn: không để spinner quay vô hạn nếu auth/Firestore treo.
+  const safetyTimer = window.setTimeout(() => {
+    if (currentUserProfile) return;
+    console.warn("Kiểm tra phiên đăng nhập quá lâu — hiện màn hình đăng nhập.");
+    showPageLoader(false);
+    showLoginScreen();
+    showToast(t("auth.sessionTimeout"), "error");
+  }, 18000);
+
   onAuthStateChanged(auth, async (user) => {
     if (isHandlingRegistration) {
       return;
     }
-    if (isLoadingAuth) {
-      return;
-    }
-
-    let keepLoader = false;
 
     try {
       if (!user) {
-        if (!authReady) {
-          if (auth.currentUser) {
-            keepLoader = true;
-            return;
-          }
-          authReady = true;
-        }
         currentFirebaseUser = null;
         currentUserProfile = null;
         showLoginScreen();
         return;
       }
 
-      isLoadingAuth = true;
-      authReady = true;
       currentFirebaseUser = user;
       const profile = await loadCurrentUserProfile(user.uid);
       ensureAuthorizedAccess(profile);
       currentUserProfile = profile;
       await showAppScreen(profile, user);
+      window.clearTimeout(safetyTimer);
     } catch (error) {
       console.error(error);
       const message = error.message || t("auth.loadProfileFailed");
@@ -277,10 +271,7 @@ function observeAuthState() {
       showLoginScreen();
       showToast(message, "error");
     } finally {
-      isLoadingAuth = false;
-      if (!keepLoader) {
-        showPageLoader(false);
-      }
+      showPageLoader(false);
     }
   });
 }
@@ -495,23 +486,33 @@ async function loadCurrentUserProfile(uid) {
 }
 
 async function readUserDocWithFallback(docRef) {
-  const timeoutMs = 15000;
-  let timer = null;
-  try {
-    return await Promise.race([
-      getDoc(docRef),
+  const timeoutMs = 10000;
+
+  const raceGet = (promise, label) => {
+    let timer = null;
+    return Promise.race([
+      promise,
       new Promise((_, reject) => {
-        timer = window.setTimeout(() => reject(new Error("profile-timeout")), timeoutMs);
+        timer = window.setTimeout(() => reject(new Error(label)), timeoutMs);
       })
-    ]);
+    ]).finally(() => {
+      if (timer != null) window.clearTimeout(timer);
+    });
+  };
+
+  try {
+    return await raceGet(getDoc(docRef), "profile-timeout");
   } catch (error) {
-    if (error?.message !== "profile-timeout") {
-      throw error;
-    }
+    if (error?.message !== "profile-timeout") throw error;
     console.warn("getDoc chậm, thử getDocFromServer...");
-    return getDocFromServer(docRef);
-  } finally {
-    if (timer != null) window.clearTimeout(timer);
+    try {
+      return await raceGet(getDocFromServer(docRef), "profile-server-timeout");
+    } catch (serverError) {
+      if (serverError?.message === "profile-server-timeout" || serverError?.message === "profile-timeout") {
+        throw new Error(t("auth.sessionTimeout"));
+      }
+      throw serverError;
+    }
   }
 }
 
