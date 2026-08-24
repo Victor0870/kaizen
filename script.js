@@ -100,7 +100,7 @@ async function initApp() {
   try {
     await initAppCheck().catch((error) => console.warn(error));
     await authPersistenceReady;
-    void observeAuthState();
+    observeAuthState();
     void loadRegisterCatalog().then(() => populateRegisterSelects());
   } catch (error) {
     console.error("Không thể khởi tạo Firebase:", error);
@@ -231,144 +231,45 @@ function showAuthTab(tabName) {
   document.getElementById("registerPanel")?.classList.toggle("hidden", !isRegister);
 }
 
-function withTimeout(promise, ms, label = "timeout") {
-  let timer = null;
-  const timeoutPromise = new Promise((_, reject) => {
-    timer = window.setTimeout(() => reject(new Error(label)), ms);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    if (timer != null) window.clearTimeout(timer);
-  });
-}
-
-function waitForFirstAuthState(authInstance, maxMs = 8000) {
-  if (authInstance.currentUser) {
-    return Promise.resolve(authInstance.currentUser);
-  }
-
-  return new Promise((resolve) => {
-    let settled = false;
-    let nullGraceTimer = null;
-
-    const finish = (user) => {
-      if (settled) return;
-      settled = true;
-      unsub();
-      window.clearTimeout(maxTimer);
-      if (nullGraceTimer) window.clearTimeout(nullGraceTimer);
-      resolve(user ?? authInstance.currentUser ?? null);
-    };
-
-    const maxTimer = window.setTimeout(() => finish(null), maxMs);
-    const unsub = onAuthStateChanged(authInstance, (user) => {
-      if (user) {
-        finish(user);
-        return;
-      }
-      if (authInstance.currentUser) {
-        finish(authInstance.currentUser);
-        return;
-      }
-      if (nullGraceTimer) window.clearTimeout(nullGraceTimer);
-      nullGraceTimer = window.setTimeout(() => {
-        if (authInstance.currentUser) {
-          finish(authInstance.currentUser);
-        } else {
-          finish(null);
-        }
-      }, 800);
-    });
-  });
-}
-
-async function observeAuthState() {
+function observeAuthState() {
   showPageLoader(true, t("common.checkingSession"));
 
-  let profileLoadToken = 0;
-  let sessionActive = false;
-
-  const authTimeout = window.setTimeout(() => {
-    if (sessionActive) return;
-    console.warn("Firebase auth/profile timeout");
-    showPageLoader(false);
-    showLoginScreen();
-    showToast(t("auth.sessionTimeout"), "error");
-  }, 25000);
-
-  const clearAuthTimeout = () => {
-    window.clearTimeout(authTimeout);
-  };
-
-  const processAuth = async (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (isHandlingRegistration) {
-      showPageLoader(false);
-      return;
-    }
-
-    // Firebase đôi khi emit null trước khi khôi phục session từ localStorage.
-    if (!user && auth.currentUser) {
-      user = auth.currentUser;
-    }
-
-    const loadToken = ++profileLoadToken;
-
-    if (!user) {
-      sessionActive = false;
-      currentFirebaseUser = null;
-      currentUserProfile = null;
-      clearAuthTimeout();
-      showPageLoader(false);
-      showLoginScreen();
       return;
     }
 
     try {
-      currentFirebaseUser = user;
-      const profile = await withTimeout(
-        loadOrProvisionUserProfile(user),
-        20000,
-        "profile-timeout"
-      );
-      if (loadToken !== profileLoadToken) return;
-
-      ensureAuthorizedAccess(profile);
-      currentUserProfile = profile;
-
-      const showLoginToast = !document.getElementById("loginScreen")?.classList.contains("hidden");
-      await showAppScreen(profile, user);
-      if (loadToken !== profileLoadToken) return;
-
-      sessionActive = true;
-      clearAuthTimeout();
-      showPageLoader(false);
-      if (showLoginToast) {
-        showToast(t("auth.loginSuccess"), "success");
+      if (!user) {
+        currentFirebaseUser = null;
+        currentUserProfile = null;
+        showLoginScreen();
+        return;
       }
+
+      await enterSignedInUser(user);
     } catch (error) {
-      if (loadToken !== profileLoadToken) return;
       console.error(error);
-      sessionActive = false;
-      const message = error?.message === "profile-timeout"
-        ? t("auth.sessionTimeout")
-        : (error.message || t("auth.loadProfileFailed"));
+      const message = error.message || t("auth.loadProfileFailed");
+
       if (shouldSignOutOnAccessError(message)) {
         await safeSignOut();
       }
-      clearAuthTimeout();
-      showPageLoader(false);
+
       showLoginScreen();
       showToast(message, "error");
+    } finally {
+      showPageLoader(false);
     }
-  };
-
-  const initialUser = await waitForFirstAuthState(auth, 8000);
-  await processAuth(initialUser);
-
-  onAuthStateChanged(auth, (user) => {
-    if (sessionActive && user?.uid === currentFirebaseUser?.uid) return;
-    if (!user && !currentFirebaseUser) return;
-    void processAuth(user);
   });
+}
+
+async function enterSignedInUser(user) {
+  currentFirebaseUser = user;
+  const profile = await loadOrProvisionUserProfile(user);
+  ensureAuthorizedAccess(profile);
+  currentUserProfile = profile;
+  await showAppScreen(profile, user);
 }
 
 async function handleLogin(event) {
@@ -386,14 +287,24 @@ async function handleLogin(event) {
 
   setButtonLoading(loginBtn, true, t("auth.loggingIn"));
   showPageLoader(true, t("auth.loggingIn"));
+
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    const credential = await signInWithEmailAndPassword(auth, email, password);
     document.getElementById("passwordInput").value = "";
-    // observeAuthState sẽ tải hồ sơ và vào app.
+    await enterSignedInUser(credential.user);
+    showPageLoader(false);
+    showToast(t("auth.loginSuccess"), "success");
   } catch (error) {
     console.error(error);
+    const message = error.code
+      ? getFirebaseErrorMessage(error)
+      : (error.message || t("auth.loadProfileFailed"));
+    if (shouldSignOutOnAccessError(message)) {
+      await safeSignOut();
+    }
     showPageLoader(false);
-    showToast(getFirebaseErrorMessage(error), "error");
+    showLoginScreen();
+    showToast(message, "error");
   } finally {
     setButtonLoading(loginBtn, false);
   }

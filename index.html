@@ -18,16 +18,6 @@
       <p id="pageLoaderText" data-i18n="common.checkingSession">Đang kiểm tra phiên đăng nhập...</p>
     </div>
   </div>
-  <script>
-    /* Fallback: nếu module JS treo khi tải Firebase CDN, vẫn ẩn loader sau 20s */
-    setTimeout(function () {
-      var loader = document.getElementById("pageLoader");
-      if (!loader || loader.classList.contains("hidden")) return;
-      loader.classList.add("hidden");
-      var login = document.getElementById("loginScreen");
-      if (login) login.classList.remove("hidden");
-    }, 20000);
-  </script>
 
   <main id="authShell" class="app-shell">
     <section id="loginScreen" class="screen auth-screen hidden">
@@ -444,6 +434,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260824c"></script>
+  <script type="module" src="./script.js?v=20260824d"></script>
 </body>
 </html>
