@@ -7,6 +7,7 @@ import {
   signOut,
   doc,
   getDoc,
+  getDocFromServer,
   updateDoc,
   addDoc,
   serverTimestamp,
@@ -30,8 +31,8 @@ let searchQuery = "";
 let toastTimer = null;
 let authReady = false;
 let isLoadingAdminData = false;
-let catalogDepartments = [];
-let catalogRanks = [];
+let catalogDepartments = [...getDefaultCatalog().departments];
+let catalogRanks = [...getDefaultCatalog().ranks];
 let activeAdminSection = "usersSection";
 
 document.addEventListener("DOMContentLoaded", initAdminPage);
@@ -80,6 +81,11 @@ function bindEvents() {
     });
   });
 
+  window.addEventListener("hashchange", () => {
+    const sectionId = location.hash === "#catalogSection" ? "catalogSection" : "usersSection";
+    showAdminSection(sectionId);
+  });
+
   document.getElementById("addDepartmentBtn")?.addEventListener("click", () => addCatalogItem("departments"));
   document.getElementById("addRankBtn")?.addEventListener("click", () => addCatalogItem("ranks"));
   document.getElementById("newDepartmentInput")?.addEventListener("keydown", (e) => {
@@ -111,13 +117,20 @@ function showAdminSection(sectionId) {
     link.classList.toggle("active", link.dataset.adminSection === activeAdminSection);
   });
 
+  const breadcrumb = document.querySelector(".admin-breadcrumb");
+  if (breadcrumb) {
+    breadcrumb.textContent = activeAdminSection === "catalogSection"
+      ? `/ ${t("nav.adminCatalog")}`
+      : `/ ${t("admin.breadcrumb")}`;
+  }
+
   if (activeAdminSection === "catalogSection") {
-    if (!catalogDepartments.length || !catalogRanks.length) {
-      void loadCatalog(false);
-    } else {
-      renderCatalogLists();
-    }
-    document.getElementById("catalogSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    renderCatalogLists();
+    void loadCatalog(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById("newDepartmentInput")?.focus({ preventScroll: true });
+      document.getElementById("catalogSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   try {
@@ -174,11 +187,7 @@ function observeAuth() {
 
       updateAdminSidebar(user, profile);
       await loadUsers(false);
-      try {
-        await loadCatalog(false);
-      } catch (catalogError) {
-        console.warn(catalogError);
-      }
+      void loadCatalog(false);
       showAdminSection(location.hash === "#catalogSection" ? "catalogSection" : "usersSection");
     } catch (error) {
       console.error(error);
@@ -575,7 +584,14 @@ function escapeHtml(value) {
 async function loadCatalog(showLoader = true) {
   if (showLoader) showPageLoader(true, t("admin.catalog.loading"));
   try {
-    const result = await ensureCatalogDefaults(db, doc, getDoc, setDoc, serverTimestamp);
+    const result = await ensureCatalogDefaults(
+      db,
+      doc,
+      getDoc,
+      setDoc,
+      serverTimestamp,
+      getDocFromServer
+    );
     catalogDepartments = [...result.departments];
     catalogRanks = [...result.ranks];
     if (!catalogDepartments.length || !catalogRanks.length) {

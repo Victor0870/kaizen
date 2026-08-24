@@ -83,15 +83,36 @@ export function getDepartmentCode(catalog, departmentName) {
   return found?.code || name.toUpperCase();
 }
 
-export async function fetchCatalog(db, docFn, getDocFn) {
-  const snap = await getDocFn(docFn(db, CATALOG_COLLECTION, CATALOG_DOC_ID));
+async function readCatalogSnap(ref, getDocFn, getDocFromServerFn = null, timeoutMs = 15000) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      getDocFn(ref),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("catalog-read-timeout")), timeoutMs);
+      })
+    ]);
+  } catch (error) {
+    if (error?.message === "catalog-read-timeout" && getDocFromServerFn) {
+      console.warn("getDoc catalog chậm, thử getDocFromServer...");
+      return getDocFromServerFn(ref);
+    }
+    throw error;
+  } finally {
+    if (timer != null) clearTimeout(timer);
+  }
+}
+
+export async function fetchCatalog(db, docFn, getDocFn, getDocFromServerFn = null) {
+  const ref = docFn(db, CATALOG_COLLECTION, CATALOG_DOC_ID);
+  const snap = await readCatalogSnap(ref, getDocFn, getDocFromServerFn);
   if (!snap.exists()) return getDefaultCatalog();
   return parseCatalogData(snap.data());
 }
 
-export async function ensureCatalogDefaults(db, docFn, getDocFn, setDocFn, serverTimestampFn) {
+export async function ensureCatalogDefaults(db, docFn, getDocFn, setDocFn, serverTimestampFn, getDocFromServerFn = null) {
   const ref = docFn(db, CATALOG_COLLECTION, CATALOG_DOC_ID);
-  const snap = await getDocFn(ref);
+  const snap = await readCatalogSnap(ref, getDocFn, getDocFromServerFn);
   if (snap.exists()) {
     const raw = snap.data();
     const parsed = parseCatalogData(snap.data());

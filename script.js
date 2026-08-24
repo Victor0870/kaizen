@@ -112,7 +112,7 @@ async function initApp() {
 
 async function loadRegisterCatalog() {
   try {
-    registerCatalog = await fetchCatalog(db, doc, getDoc);
+    registerCatalog = await fetchCatalog(db, doc, getDoc, getDocFromServer);
   } catch (error) {
     console.warn("Không thể tải danh mục bộ phận/chức danh, dùng mặc định:", error);
     registerCatalog = {
