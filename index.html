@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css?v=20260822q">
-  <link rel="stylesheet" href="./kaizen.css?v=20260822p">
+  <link rel="stylesheet" href="./kaizen.css?v=20260824a">
 </head>
 <body data-page-title-key="page.index">
   <div id="pageLoader" class="page-loader">
@@ -261,6 +261,11 @@
                 <p id="ideaRevisionComment">-</p>
               </div>
 
+              <div id="ideaApprovedBanner" class="kz-approved-banner hidden">
+                <strong data-i18n="kaizen.approved.title">Phiếu đã được phê duyệt</strong>
+                <p id="ideaApprovedMessage">-</p>
+              </div>
+
               <div class="kz-content-row">
                 <div class="kz-grow">
                   <label class="kz-label" data-i18n="kaizen.field.improvedContent">Nội dung cải tiến</label>
@@ -301,8 +306,25 @@
 
               <div id="managerReviewPanel" class="kz-manager-review hidden">
                 <h3 data-i18n="progress.managerReviewTitle">Phê duyệt phiếu ý tưởng</h3>
-                <label class="kz-label" for="managerReviewComment" data-i18n="progress.managerComment">Ý kiến người phê duyệt</label>
-                <textarea id="managerReviewComment" rows="3" data-i18n-placeholder="progress.managerCommentPlaceholder"></textarea>
+                <div class="kz-manager-review-field">
+                  <label class="kz-label" for="managerReviewComment" data-i18n="progress.managerComment">Ý kiến người phê duyệt</label>
+                  <textarea id="managerReviewComment" rows="3" data-i18n-placeholder="progress.managerCommentPlaceholder"></textarea>
+                </div>
+                <div class="kz-manager-investment">
+                  <span class="kz-label" data-i18n="progress.investmentLabel">Đánh giá đầu tư</span>
+                  <div class="kz-investment-options">
+                    <label class="kz-investment-option">
+                      <input type="radio" name="managerInvestmentChoice" id="managerInvestmentNo" value="no">
+                      <span data-i18n="progress.noInvestment">Không cần đầu tư</span>
+                    </label>
+                    <label class="kz-investment-option kz-investment-with-amount">
+                      <input type="radio" name="managerInvestmentChoice" id="managerInvestmentYes" value="yes">
+                      <span data-i18n="progress.needsInvestment">Cần đầu tư</span>
+                      <input type="number" id="managerInvestmentAmount" class="kz-investment-amount" min="0" step="0.01" disabled
+                        data-i18n-placeholder="progress.investmentAmountPlaceholder" placeholder="Số tiền ($)">
+                    </label>
+                  </div>
+                </div>
                 <div class="kz-manager-review-actions">
                   <button type="button" class="ghost-btn" data-review-decision="revision" data-i18n="progress.requestRevision">Yêu cầu sửa lại</button>
                   <button type="button" class="btn-action reject" data-review-decision="reject" data-i18n="progress.rejectIdea">Không phê duyệt</button>
@@ -444,6 +466,6 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="./script.js?v=20260824h"></script>
+  <script type="module" src="./script.js?v=20260824i"></script>
 </body>
 </html>

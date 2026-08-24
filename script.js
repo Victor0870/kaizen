@@ -216,6 +216,51 @@ function bindEvents() {
   document.querySelectorAll("[data-review-decision]").forEach((button) => {
     button.addEventListener("click", () => handleManagerReview(button.dataset.reviewDecision));
   });
+  bindManagerInvestmentControls();
+}
+
+function bindManagerInvestmentControls() {
+  const yesRadio = document.getElementById("managerInvestmentYes");
+  const noRadio = document.getElementById("managerInvestmentNo");
+  const amountInput = document.getElementById("managerInvestmentAmount");
+  const syncAmountField = () => {
+    if (!amountInput) return;
+    const enabled = yesRadio?.checked === true;
+    amountInput.disabled = !enabled;
+    if (!enabled) amountInput.value = "";
+  };
+  yesRadio?.addEventListener("change", syncAmountField);
+  noRadio?.addEventListener("change", syncAmountField);
+}
+
+function resetManagerReviewForm() {
+  const commentBox = document.getElementById("managerReviewComment");
+  if (commentBox) commentBox.value = "";
+  const noRadio = document.getElementById("managerInvestmentNo");
+  const yesRadio = document.getElementById("managerInvestmentYes");
+  const amountInput = document.getElementById("managerInvestmentAmount");
+  if (noRadio) noRadio.checked = false;
+  if (yesRadio) yesRadio.checked = false;
+  if (amountInput) {
+    amountInput.value = "";
+    amountInput.disabled = true;
+  }
+}
+
+function getManagerInvestmentChoice() {
+  const yesRadio = document.getElementById("managerInvestmentYes");
+  const noRadio = document.getElementById("managerInvestmentNo");
+  const amountInput = document.getElementById("managerInvestmentAmount");
+  if (yesRadio?.checked) {
+    return {
+      requiresInvestment: true,
+      amount: Number(amountInput?.value) || 0
+    };
+  }
+  if (noRadio?.checked) {
+    return { requiresInvestment: false, amount: 0 };
+  }
+  return null;
 }
 
 function showAuthTab(tabName) {
@@ -1186,6 +1231,20 @@ function applyIdeaFormState(record) {
     if (showRevision) commentEl.textContent = record.l1ReviewComment;
   }
 
+  const approvedBanner = document.getElementById("ideaApprovedBanner");
+  const approvedMsgEl = document.getElementById("ideaApprovedMessage");
+  if (approvedBanner && approvedMsgEl) {
+    const showApproved = status === KAIZEN_STATUS.APPROVED;
+    const showPendingTopMg = status === KAIZEN_STATUS.L1_APPROVED;
+    approvedBanner.classList.toggle("hidden", !showApproved && !showPendingTopMg);
+    if (showApproved) {
+      approvedMsgEl.textContent = t("kaizen.approved.readyProgress");
+    } else if (showPendingTopMg) {
+      const amount = Number(record?.investmentAmount || 0).toFixed(2);
+      approvedMsgEl.textContent = t("kaizen.approved.pendingTopMg", { amount });
+    }
+  }
+
   document.getElementById("saveDraftBtn")?.classList.toggle("hidden", !editable);
   document.getElementById("submitIdeaBtn")?.classList.toggle("hidden", !editable || status === KAIZEN_STATUS.REVISION_REQUESTED);
   document.getElementById("resubmitIdeaBtn")?.classList.toggle("hidden", status !== KAIZEN_STATUS.REVISION_REQUESTED);
@@ -1199,8 +1258,7 @@ function applyIdeaFormState(record) {
   if (reviewPanel) {
     reviewPanel.classList.toggle("hidden", !showManagerReview);
     if (showManagerReview) {
-      const commentBox = document.getElementById("managerReviewComment");
-      if (commentBox) commentBox.value = "";
+      resetManagerReviewForm();
     }
   }
 }
@@ -1285,7 +1343,10 @@ function renderProgressStepDetail(stepKey, record) {
   if (stepKey === "l1_approval") {
     const name = record.l1ReviewedByName || record.l1ApprovedByName;
     const comment = record.l1ReviewComment;
-    if (!name && !comment) return "";
+    const investmentLine = record.requiresInvestment
+      ? t("progress.investmentDetail", { amount: Number(record.investmentAmount || 0).toFixed(2) })
+      : (record.l1ReviewDecision === "approve" ? t("progress.noInvestmentDetail") : "");
+    if (!name && !comment && !investmentLine) return "";
     const nameLine = name
       ? escapeHtml(t(record.l1ReviewDecision === "reject"
         ? "progress.rejectedBy"
@@ -1296,7 +1357,10 @@ function renderProgressStepDetail(stepKey, record) {
     const commentLine = comment
       ? `<p class="kz-progress-comment">${escapeHtml(comment)}</p>`
       : "";
-    return `<div class="kz-progress-detail">${nameLine ? `<p>${nameLine}</p>` : ""}${commentLine}</div>`;
+    const investmentHtml = investmentLine
+      ? `<p class="kz-progress-detail-meta">${escapeHtml(investmentLine)}</p>`
+      : "";
+    return `<div class="kz-progress-detail">${nameLine ? `<p>${nameLine}</p>` : ""}${investmentHtml}${commentLine}</div>`;
   }
   if (stepKey === "l2_approval" && record.l2ApprovedByName) {
     return `<p class="kz-progress-detail">${escapeHtml(t("progress.approvedBy", { name: record.l2ApprovedByName }))}</p>`;
@@ -1398,13 +1462,28 @@ async function handleManagerReview(decision) {
     return;
   }
 
+  let investment = null;
+  if (decision === "approve") {
+    investment = getManagerInvestmentChoice();
+    if (!investment) {
+      showToast(t("progress.investmentChoiceRequired"), "error");
+      return;
+    }
+    if (investment.requiresInvestment && investment.amount <= 0) {
+      showToast(t("progress.investmentAmountRequired"), "error");
+      return;
+    }
+  }
+
   const confirmKeys = {
     approve: "progress.confirmApproveIdea",
     reject: "progress.confirmRejectIdea",
     revision: "progress.confirmRevision"
   };
   const successKeys = {
-    approve: "progress.approveIdeaSuccess",
+    approve: investment?.requiresInvestment
+      ? "progress.approveIdeaPendingTopMg"
+      : "progress.approveIdeaReadyProgress",
     reject: "progress.rejectIdeaSuccess",
     revision: "progress.revisionSuccess"
   };
@@ -1412,7 +1491,7 @@ async function handleManagerReview(decision) {
 
   showPageLoader(true, t("common.loading"));
   try {
-    await managerReviewKaizen(docId, decision, comment, currentUserProfile);
+    await managerReviewKaizen(docId, decision, comment, currentUserProfile, investment);
     showToast(t(successKeys[decision]), "success");
     await loadKaizenListSafe();
     const updated = kaizenListCache.find((item) => item.id === docId);

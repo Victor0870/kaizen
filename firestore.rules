@@ -213,13 +213,42 @@ service cloud.firestore {
 
     function kaizenManagerReviewAllowed() {
       let next = request.resource.data.status.lower();
+      let path = request.resource.data.approvalPath;
+      let needsInv = request.resource.data.requiresInvestment;
+      let diff = request.resource.data.diff(resource.data).affectedKeys();
+
+      let reviewFields = [
+        "status", "l1ReviewDecision", "l1ReviewComment", "l1ReviewedBy",
+        "l1ReviewedByName", "l1ReviewedAt", "updatedAt"
+      ];
+      let approveFields = reviewFields.concat([
+        "approvalPath", "requiresInvestment", "investmentAmount",
+        "l1ApprovedBy", "l1ApprovedByName", "l1ApprovedAt"
+      ]);
 
       return isManager() &&
              managerDeptMatches(resource.data) &&
              resource.data.status.lower() == "submitted" &&
              request.resource.data.l1ReviewedBy == request.auth.uid &&
              request.resource.data.l1ReviewComment is string &&
-             next in ["approved", "rejected", "revision_requested"];
+             (
+               (next == "rejected" && diff.hasOnly(reviewFields)) ||
+               (next == "revision_requested" && diff.hasOnly(reviewFields)) ||
+               (
+                 next == "approved" &&
+                 path == "manager_only" &&
+                 needsInv == false &&
+                 diff.hasOnly(approveFields)
+               ) ||
+               (
+                 next == "l1_approved" &&
+                 path == "top_manager" &&
+                 needsInv == true &&
+                 request.resource.data.investmentAmount is number &&
+                 request.resource.data.investmentAmount > 0 &&
+                 diff.hasOnly(approveFields)
+               )
+             );
     }
 
     function recordDept(data) {

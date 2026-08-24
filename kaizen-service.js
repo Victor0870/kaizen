@@ -153,7 +153,7 @@ export async function approveKaizenL1(docId, approver, record) {
   return updateKaizenStatus(docId, patch);
 }
 
-export async function managerReviewKaizen(docId, decision, comment, approver) {
+export async function managerReviewKaizen(docId, decision, comment, approver, investment = null) {
   const patch = {
     l1ReviewDecision: decision,
     l1ReviewComment: String(comment || "").trim(),
@@ -162,7 +162,14 @@ export async function managerReviewKaizen(docId, decision, comment, approver) {
   };
 
   if (decision === "approve") {
-    patch.status = KAIZEN_STATUS.APPROVED;
+    const needsInvestment = investment?.requiresInvestment === true;
+    const path = needsInvestment ? APPROVAL_PATH.TOP_MANAGER : APPROVAL_PATH.MANAGER_ONLY;
+    patch.approvalPath = path;
+    patch.requiresInvestment = needsInvestment;
+    patch.investmentAmount = needsInvestment ? Math.max(0, Number(investment?.amount) || 0) : 0;
+    patch.status = path === APPROVAL_PATH.MANAGER_ONLY
+      ? KAIZEN_STATUS.APPROVED
+      : KAIZEN_STATUS.L1_APPROVED;
     patch.l1ApprovedBy = approver.uid || "";
     patch.l1ApprovedByName = approver.hoTen || approver.email || "";
   } else if (decision === "reject") {

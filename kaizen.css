@@ -355,6 +355,25 @@
   white-space: pre-wrap;
 }
 
+.kz-approved-banner {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  border-radius: 8px;
+}
+
+.kz-approved-banner strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #065f46;
+}
+
+.kz-approved-banner p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .kz-manager-review {
   margin-top: 1.25rem;
   padding-top: 1.25rem;
@@ -362,24 +381,93 @@
 }
 
 .kz-form-locked .kz-manager-review textarea,
-.kz-form-locked .kz-manager-review button {
+.kz-form-locked .kz-manager-review button,
+.kz-form-locked .kz-manager-review input[type="radio"],
+.kz-form-locked .kz-manager-review input[type="number"] {
   pointer-events: auto;
   opacity: 1;
 }
 
 .kz-manager-review h3 {
-  margin: 0 0 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.kz-manager-review-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.kz-manager-review-field .kz-label {
+  margin: 0;
 }
 
 .kz-manager-review textarea {
   width: 100%;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.kz-manager-investment {
+  margin-bottom: 1.25rem;
+}
+
+.kz-manager-investment > .kz-label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.kz-investment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.kz-investment-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.kz-investment-option input[type="radio"] {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.kz-investment-with-amount .kz-investment-amount {
+  width: 9rem;
+  min-width: 7rem;
+  padding: 0.35rem 0.5rem;
+  margin-left: 0.25rem;
+}
+
+.kz-investment-amount:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
 }
 
 .kz-manager-review-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.kz-manager-review-actions button {
+  width: 100%;
+  min-height: 2.5rem;
+  justify-content: center;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .kz-manager-review-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .kz-manager-review-actions .btn-action.reject {
