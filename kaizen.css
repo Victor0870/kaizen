@@ -418,36 +418,73 @@
 
 .kz-manager-investment > .kz-label {
   display: block;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.45rem;
 }
 
 .kz-investment-options {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
 }
 
 .kz-investment-option {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
+  gap: 0.4rem;
   cursor: pointer;
   font-size: 0.95rem;
+  position: relative;
+  white-space: nowrap;
 }
 
 .kz-investment-option input[type="radio"] {
-  flex-shrink: 0;
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
   margin: 0;
-  transform: scale(1.15);
-  transform-origin: center;
+  pointer-events: none;
+}
+
+.kz-check-box {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 2px solid #4b5563;
+  border-radius: 3px;
+  background: #fff;
+  display: inline-block;
+  position: relative;
+}
+
+.kz-investment-option input[type="radio"]:focus-visible + .kz-check-box {
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.35);
+}
+
+.kz-investment-option input[type="radio"]:checked + .kz-check-box {
+  background: #c9a227;
+  border-color: #8c6a12;
+}
+
+.kz-investment-option input[type="radio"]:checked + .kz-check-box::after {
+  content: "";
+  position: absolute;
+  left: 0.28rem;
+  top: 0.05rem;
+  width: 0.32rem;
+  height: 0.62rem;
+  border: solid #1c1915;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .kz-investment-with-amount .kz-investment-amount {
-  width: 8rem;
+  width: 7.5rem;
   min-width: 6.5rem;
-  padding: 0.35rem 0.5rem;
-  margin-left: 0.25rem;
+  padding: 0.3rem 0.45rem;
+  margin-left: 0.15rem;
 }
 
 .kz-investment-amount:disabled {
@@ -457,20 +494,31 @@
 
 .kz-manager-review-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(150px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  max-width: 34rem;
 }
 
 .kz-manager-review-actions button {
-  width: auto;
+  width: 100%;
   min-height: 2.35rem;
-  justify-self: center;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  justify-content: center;
   text-align: center;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {
   .kz-manager-review-actions {
     grid-template-columns: 1fr;
+    max-width: none;
+  }
+
+  .kz-investment-options {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
